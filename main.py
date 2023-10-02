@@ -19,10 +19,10 @@ from categories import subcategories, categories
 from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
 from quantize.int_linear import QuantLinear
-try:
-    from llava.model import *   # required for llava
-except ImportError:
-    print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
+# try:
+#     from llava.model import *   # required for llava
+# except ImportError:
+#     print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
 
 import pdb
 

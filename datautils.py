@@ -5,11 +5,14 @@ import numpy as np
 import torch
 import random
 
+# Setup proxy for downloading huggingface datasets
+import os
+os.environ['HTTP_PROXY'] = 'http://127.0.0.1:7991'
+os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:7991'
 
 def set_seed(seed):
     np.random.seed(seed)
     torch.random.manual_seed(seed)
-
 
 
 
