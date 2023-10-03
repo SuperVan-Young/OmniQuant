@@ -108,14 +108,16 @@ class UniformAffineQuantizer(nn.Module):
         return x_dequant
 
     def keep_high_prec(self, x, x_quant):
-        assert self.keep_high_prec != [], "please specify which channels to keep high precision"
         mask = torch.zeros_like(x_quant, dtype=torch.bool)
-        mask[:, self.keep_high_prec] = True
+        if len(mask.shape) == 3:
+            mask[:, :, self.high_prec_channels] = True
+        else:
+            raise RuntimeError(f"Only support 3D tensor now, got shape {mask.shape}")
         x_out =  torch.where(mask, x, x_quant)
         return x_out
 
 
-    def forward(self, x: torch.Tensor):
+    def forward_normal(self, x: torch.Tensor):
         if self.n_bits >= 16 or not self.enable:
             return x
         if self.metric == "fix0to1":
@@ -127,9 +129,22 @@ class UniformAffineQuantizer(nn.Module):
             raise NotImplementedError()   
 
         x_dequant = self.fake_quant(x, self.scale, self.round_zero_point)
-        if self.high_prec_channels != []:
-            x_quant = self.keep_high_prec(x, x_quant)
 
+        return x_dequant
+    
+    def forward(self, x: torch.Tensor):
+        """
+        Set outliers to 0 to be friendly for quantizing normal values,
+        """
+        mask = torch.zeros_like(x, dtype=torch.bool)
+        if len(mask.shape) == 3:
+            mask[:, :, self.high_prec_channels] = True
+        else:
+            raise RuntimeError(f"Only support 3D tensor now, got shape {mask.shape}")
+        x_normal = torch.where(mask, torch.zeros_like(x), x)
+        x_outlier = torch.where(mask, x, torch.zeros_like(x))
+        x_normal = self.forward_normal(x_normal)
+        x_dequant = x_normal + x_outlier
         return x_dequant
 
     def per_token_dynamic_calibration(self, x):

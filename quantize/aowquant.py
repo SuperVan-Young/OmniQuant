@@ -96,10 +96,15 @@ def aowquant(
                 act_scale = act_scales[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype).clamp(1e-5)
                 num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
                 _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
-                module.act_quantizer.high_prec_channels = high_prec_channels
+                module.act_quantizer.high_prec_channels = [int(i) for i in high_prec_channels]
                 # set enabling state of activation quantzier
                 linear_category = pairs[name.split(".")[-1]]
                 module.use_act_quant = getattr(args, f"aow_quant_act_{linear_category}")
+                # logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
+
+        qlayer.register_scales_and_zeros()
+        qlayer.half()
+        layers[i] = qlayer.to("cpu")
         del layer
         torch.cuda.empty_cache()
 
