@@ -31,7 +31,8 @@ class UniformAffineQuantizer(nn.Module):
         dynamic_method="per_cluster",
         group_size=None,
         shape=None,
-        lwc=False
+        lwc=False,
+        high_prec_channels=[],
     ):
         """
         support cluster quantize
@@ -58,6 +59,9 @@ class UniformAffineQuantizer(nn.Module):
         self.dynamic_method = dynamic_method
         self.deficiency = 0
         self.lwc = lwc
+
+        # keep certain input channels of activation at high precision
+        self.high_prec_channels = high_prec_channels
         
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
@@ -103,7 +107,14 @@ class UniformAffineQuantizer(nn.Module):
         if self.deficiency > 0:
             x_dequant = x_dequant[:,:-self.deficiency]
         return x_dequant
-    
+
+    def keep_high_prec(self, x, x_quant):
+        assert self.keep_high_prec != [], "please specify which channels to keep high precision"
+        mask = torch.zeros_like(x_quant, dtype=torch.bool)
+        mask[:, self.keep_high_prec] = True
+        x_out =  torch.where(mask, x, x_quant)
+        return x_out
+
 
     def forward(self, x: torch.Tensor):
         if self.n_bits >= 16 or not self.enable:
@@ -117,6 +128,9 @@ class UniformAffineQuantizer(nn.Module):
             raise NotImplementedError()   
 
         x_dequant = self.fake_quant(x, self.scale, self.round_zero_point)
+        if self.keep_high_prec:
+            x_quant = self.keep_high_prec(x, x_quant)
+
         return x_dequant
 
     def per_token_dynamic_calibration(self, x):
