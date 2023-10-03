@@ -19,8 +19,13 @@ from datautils import get_loaders
 #     print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
 
 # import pdb
-
-
+from models.int_llama_layer import QuantLlamaDecoderLayer
+from models.int_opt_layer import QuantOPTDecoderLayer
+from models.int_falcon_layer import QuantFalconDecoderLayer
+from quantize.int_linear import QuantLinear
+from quantize.int_matmul import QuantMatMul
+from quantize.omni_norm import OmniLayerNorm, OmniLlamaRMSNorm
+from parallel_utils import add_forward_hooks
 
 def get_act_scales(model, dataloader, num_samples=128):
     model.eval()
@@ -93,6 +98,36 @@ def get_act_shifts(model, dataloader, num_samples=128):
 
     return act_shifts
 
+def wrap_up_model(model, args):
+    if 'llama' in args.net.lower():
+        layers = model.model.layers
+        DecoderLayer = QuantLlamaDecoderLayer
+    elif 'opt' in args.net.lower():
+        layers = model.model.decoder.layers
+        DecoderLayer = QuantOPTDecoderLayer
+    elif 'falcon' in args.net.lower():
+        layers = model.transformer.h
+        DecoderLayer = QuantFalconDecoderLayer
+    else:
+        raise NotImplementedError
+
+    # to deploy layers across all gpus
+    layer_gpu_map = {}
+
+    for i in range(len(layers)):
+        layer = layers[i]
+        layer_device = next(layer.parameters()).device.index
+        qlayer = DecoderLayer(model.config, layer, args)
+        qlayer.set_quant_state(weight_quant=False, act_quant=False)
+        layers[i] = qlayer
+        layer_gpu_map[qlayer] = layer_device
+        del layer
+
+    add_forward_hooks(layer_gpu_map)
+
+    return model
+
+
 def get_act_stats(model, dataloader, num_samples=128):
     """
     Profile all stats for all layers in the model.
@@ -116,7 +151,7 @@ def get_act_stats(model, dataloader, num_samples=128):
         stats['std'] = torch.std(tensor, dim=0).float().cpu()
         return stats
 
-    def update_min_max(name, category, comming_stats):
+    def update_stats(name, category, comming_stats):
         act_stats.setdefault(name, {})
         act_stats[name].setdefault(category, {
             'min': None,
@@ -155,21 +190,22 @@ def get_act_stats(model, dataloader, num_samples=128):
             x = x[0]
         input_stats = get_tensor_stat(x)
         abs_input_stats = get_tensor_stat(x.abs())
-        update_min_max(name, 'input', input_stats)
-        update_min_max(name, 'abs_input', abs_input_stats)
+        update_stats(name, 'input', input_stats)
+        update_stats(name, 'abs_input', abs_input_stats)
 
         output_stats = get_tensor_stat(y)
         abs_output_stats = get_tensor_stat(y.abs())
-        update_min_max(name, 'output', output_stats)
-        update_min_max(name, 'abs_output', abs_output_stats)
+        update_stats(name, 'output', output_stats)
+        update_stats(name, 'abs_output', abs_output_stats)
     
     hooks = []
     for name, m in model.named_modules():
-        if isinstance(m, nn.Linear):
+        if isinstance(m, (QuantLinear, OmniLlamaRMSNorm, OmniLayerNorm)):
             hooks.append(
                 m.register_forward_hook(
                     functools.partial(stat_linear_hook, name=name))
             )
+            print(f"Register hook for {name} ({type(m)})")
 
     for i in tqdm(range(num_samples)):
         model(dataloader[i][0].to(device))
@@ -222,6 +258,13 @@ def main():
     
     args.net = args.model.split('/')[-1]
     if args.profile_all_stats:
+        args.weight_quant_params = {}
+        args.act_quant_params = {}
+        args.q_quant_params = {}
+        args.k_quant_params = {}
+        args.p_quant_params = {}
+        args.v_quant_params = {}
+        wrap_up_model(model, args)
         act_stats = get_act_stats(model, dataloader, args.num_samples)
         save_path = os.path.join(args.act_stats_output_path,f'{args.net}.pt')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
