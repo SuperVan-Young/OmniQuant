@@ -99,7 +99,7 @@ def aowquant(
                 module.act_quantizer.high_prec_channels = high_prec_channels
                 # set enabling state of activation quantzier
                 linear_category = pairs[name.split(".")[-1]]
-                module.act_quantizer.enable = getattr(args, f"aow_quant_act_{linear_category}")
+                module.use_act_quant = getattr(args, f"aow_quant_act_{linear_category}")
         del layer
         torch.cuda.empty_cache()
 
