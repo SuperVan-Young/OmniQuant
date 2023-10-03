@@ -203,8 +203,8 @@ def get_act_stats(model, dataloader, num_samples=128):
             q = x[0]
             k = x[1]
             bsz, num_heads, q_len, head_dim = q.shape
-            q = q.transpose(1, 2).view(-1, num_heads * head_dim)
-            k = k.transpose(2, 3).transpose(1, 2).view(-1, num_heads * head_dim)
+            q = q.transpose(1, 2).reshape(-1, num_heads * head_dim)
+            k = k.transpose(2, 3).transpose(1, 2).reshape(-1, num_heads * head_dim)
         q_stats = get_tensor_stat(q)
         abs_q_stats = get_tensor_stat(q.abs())
         update_stats(name, 'q', q_stats)
@@ -219,7 +219,7 @@ def get_act_stats(model, dataloader, num_samples=128):
         if isinstance(x, tuple):
             v = x[1]
             bsz, num_heads, q_len, head_dim = v.shape
-            v = v.transpose(1, 2).view(-1, num_heads * head_dim)
+            v = v.transpose(1, 2).reshape(-1, num_heads * head_dim)
 
         v_stats = get_tensor_stat(v)
         abs_v_stats = get_tensor_stat(v.abs())
@@ -298,6 +298,8 @@ def main():
     )
     
     args.net = args.model.split('/')[-1]
+    print(f"Profiling model: {args.net}")
+
     if args.profile_all_stats:
         args.weight_quant_params = {}
         args.act_quant_params = {}

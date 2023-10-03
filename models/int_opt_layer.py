@@ -62,10 +62,10 @@ class QuantOPTAttention(nn.Module):
             org_module.out_proj, args.weight_quant_params, args.act_quant_params
         )
         self.qkt_matmul = QuantMatMul(
-            args.q_quant_params, args.k_quant_params, matmul_func=torch.bmm
+            args.q_quant_params, args.k_quant_params, matmul_func=torch.matmul
         )
         self.pv_matmul = QuantMatMul(
-            args.p_quant_params, args.v_quant_params, matmul_func=torch.bmm
+            args.p_quant_params, args.v_quant_params, matmul_func=torch.matmul
         )
 
         self.use_weight_quant = False
@@ -131,13 +131,17 @@ class QuantOPTAttention(nn.Module):
         if self.is_decoder:
             past_key_value = (key_states, value_states)
 
-        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
-        query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
-        key_states = key_states.view(*proj_shape)
-        value_states = value_states.view(*proj_shape)
+        # proj_shape = (bsz * self.num_heads, -1, self.head_dim)
+        # query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
+        # key_states = key_states.view(*proj_shape)
+        # value_states = value_states.view(*proj_shape)
+        query_states = self._shape(query_states, tgt_len, bsz)
 
-        src_len = key_states.size(1)
-        attn_weights = self.qkt_matmul(query_states, key_states.transpose(1, 2))
+        # src_len = key_states.size(1)
+        # attn_weights = self.qkt_matmul(query_states, key_states.transpose(1, 2))
+        src_len = key_states.size(2)
+        attn_weights = self.qkt_matmul(query_states, key_states.transpose(2, 3))
+        attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -194,7 +198,9 @@ class QuantOPTAttention(nn.Module):
 
         # attention shape bsz * self.num_heads, tgt_len, src_len
         attn_weights = self.pv_matmul.quant_x1(attn_weights)
+        attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
         attn_output = self.pv_matmul(attn_weights, value_states)
+        attn_output = attn_output.view(bsz * self.num_heads, tgt_len, self.head_dim)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
