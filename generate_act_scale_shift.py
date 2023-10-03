@@ -197,6 +197,34 @@ def get_act_stats(model, dataloader, num_samples=128):
         abs_output_stats = get_tensor_stat(y.abs())
         update_stats(name, 'output', output_stats)
         update_stats(name, 'abs_output', abs_output_stats)
+
+    def stat_qktmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            q = x[0]
+            k = x[1]
+            bsz, num_heads, q_len, head_dim = q.shape
+            q = q.transpose(1, 2).view(-1, num_heads * head_dim)
+            k = k.transpose(2, 3).transpose(1, 2).view(-1, num_heads * head_dim)
+        q_stats = get_tensor_stat(q)
+        abs_q_stats = get_tensor_stat(q.abs())
+        update_stats(name, 'q', q_stats)
+        update_stats(name, 'abs_q', abs_q_stats)
+
+        k_stats = get_tensor_stat(k)
+        abs_k_stats = get_tensor_stat(k.abs())
+        update_stats(name, 'k', k_stats)
+        update_stats(name, 'abs_k', abs_k_stats)
+
+    def stat_pvmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            v = x[1]
+            bsz, num_heads, q_len, head_dim = v.shape
+            v = v.transpose(1, 2).view(-1, num_heads * head_dim)
+
+        v_stats = get_tensor_stat(v)
+        abs_v_stats = get_tensor_stat(v.abs())
+        update_stats(name, 'v', v_stats)
+        update_stats(name, 'abs_v', abs_v_stats)
     
     hooks = []
     for name, m in model.named_modules():
@@ -206,6 +234,19 @@ def get_act_stats(model, dataloader, num_samples=128):
                     functools.partial(stat_linear_hook, name=name))
             )
             print(f"Register hook for {name} ({type(m)})")
+        elif isinstance(m, QuantMatMul):
+            if "qkt" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_qktmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
+            elif "pv" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_pvmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
 
     for i in tqdm(range(num_samples)):
         model(dataloader[i][0].to(device))
