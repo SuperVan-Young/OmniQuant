@@ -11,6 +11,7 @@ from pprint import pprint
 from parallel_utils import map_layers_to_multi_gpus, get_lowest_occupied_gpu
 import torch.nn as nn
 from quantize.omniquant import omniquant
+from quantize.aowquant import aowquant
 from tqdm import tqdm
 import utils
 from pathlib import Path
@@ -227,6 +228,12 @@ def main():
     parser.add_argument("--net", type=str, default=None, choices=net_choices)
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
+    parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
+    parser.add_argument("--high-prec-ratio", type=float, default=0.01, help="ratio of high precision activation channels")
+    parser.add_argument("--aow-quant-act-qkv", default=False, action="store_true", help="quantize qkv_proj activation")
+    parser.add_argument("--aow-quant-act-out", default=False, action="store_true", help="quantize o_proj activation")
+    parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
+    parser.add_argument("--aow-quant-act-fc2", default=False, action="store_true", help="quantize fc2 activation")
 
     args = parser.parse_args()
     random.seed(args.seed)
@@ -336,14 +343,26 @@ def main():
         if args.let:
             act_scales = torch.load(args.act_scales)
             act_shifts = torch.load(args.act_shifts)
-        omniquant(
-            lm,
-            args,
-            dataloader,
-            act_scales,
-            act_shifts,
-            logger,
-        )
+        if args.quant_method == "omniquant":
+            omniquant(
+                lm,
+                args,
+                dataloader,
+                act_scales,
+                act_shifts,
+                logger,
+            )
+        elif args.quant_method == "aowquant":
+            act_scales = torch.load(args.act_scales)
+            act_shifts = torch.load(args.act_shifts)
+            aowquant(
+                lm,
+                args,
+                dataloader,
+                act_scales,
+                act_shifts,
+                logger,
+            )
         logger.info(time.time() - tick)
     if args.save_dir:
         # delete omni parameters

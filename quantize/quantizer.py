@@ -32,7 +32,6 @@ class UniformAffineQuantizer(nn.Module):
         group_size=None,
         shape=None,
         lwc=False,
-        high_prec_channels=[],
     ):
         """
         support cluster quantize
@@ -61,7 +60,7 @@ class UniformAffineQuantizer(nn.Module):
         self.lwc = lwc
 
         # keep certain input channels of activation at high precision
-        self.high_prec_channels = high_prec_channels
+        self.high_prec_channels = []
         
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
@@ -128,7 +127,7 @@ class UniformAffineQuantizer(nn.Module):
             raise NotImplementedError()   
 
         x_dequant = self.fake_quant(x, self.scale, self.round_zero_point)
-        if self.keep_high_prec:
+        if self.high_prec_channels != []:
             x_quant = self.keep_high_prec(x, x_quant)
 
         return x_dequant
