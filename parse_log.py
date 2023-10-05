@@ -6,6 +6,7 @@ df = pd.DataFrame(columns=['test-name', 'wikitext2', 'ptb', 'c4', 'ptb-new', 'c4
 # listdir log
 for subdir in os.listdir('./log'):
     logs = os.listdir('./log/' + subdir)
+    logs = sorted(logs)
     recent_log = logs[-1]
     all_results = {}
     
