@@ -158,7 +158,12 @@ def add_forward_hooks(layer_gpu_map):
 
 def map_layers_to_multi_gpus(layers):
 
-    layer_gpu_map = assign_layers_to_gpus(layers)
+    # layer_gpu_map = assign_layers_to_gpus(layers)
+    
+    # naively assign layers to cuda visible devices
+    gpu_index = [int(k) for k in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+    num_layer_per_gpu = (len(layers) + len(gpu_index) - 1) // len(gpu_index)
+    layer_gpu_map = {layer: gpu_index[i // num_layer_per_gpu] for i, layer in enumerate(layers)}
 
     add_forward_hooks(layer_gpu_map)
 
