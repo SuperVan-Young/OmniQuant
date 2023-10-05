@@ -231,6 +231,7 @@ def main():
     parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
     parser.add_argument("--high-prec-ratio", type=float, default=0.01, help="ratio of high precision activation channels")
+    parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
     parser.add_argument("--aow-quant-act-qkv", default=False, action="store_true", help="quantize qkv_proj activation")
     parser.add_argument("--aow-quant-act-out", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
@@ -286,6 +287,7 @@ def main():
         "per_channel_axes": [],
         "symmetric": False,
         "dynamic_method": args.a_dynamic_method,
+        "group_size": args.act_group_size,
     }
     args.q_quant_params = {
         "n_bits": args.abits,
