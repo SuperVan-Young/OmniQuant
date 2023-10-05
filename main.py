@@ -228,6 +228,7 @@ def main():
     parser.add_argument("--net", type=str, default=None, choices=net_choices)
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
+    parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
     parser.add_argument("--high-prec-ratio", type=float, default=0.01, help="ratio of high precision activation channels")
     parser.add_argument("--aow-quant-act-qkv", default=False, action="store_true", help="quantize qkv_proj activation")
@@ -353,14 +354,14 @@ def main():
                 logger,
             )
         elif args.quant_method == "aowquant":
-            act_scales = torch.load(args.act_scales)
-            act_shifts = torch.load(args.act_shifts)
+            if args.act_stats is None:
+                args.act_stats = f'./act_stats/{args.net}.pt'
+            act_stats = torch.load(args.act_stats)
             aowquant(
                 lm,
                 args,
                 dataloader,
-                act_scales,
-                act_shifts,
+                act_stats,
                 logger,
             )
         logger.info(time.time() - tick)

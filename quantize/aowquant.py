@@ -19,8 +19,7 @@ def aowquant(
     lm,
     args,
     dataloader,
-    act_scales,
-    act_shifts,
+    act_stats,
     logger=None,
 ):
     logger.info("Starting ...")
@@ -93,7 +92,8 @@ def aowquant(
         # set high precision channels
         for name, module in qlayer.named_modules():
             if isinstance(module, QuantLinear):
-                act_scale = act_scales[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype).clamp(1e-5)
+                all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
+                act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
                 num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
                 _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
                 module.act_quantizer.high_prec_channels = [int(i) for i in high_prec_channels]
