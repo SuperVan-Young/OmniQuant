@@ -155,15 +155,28 @@ def add_forward_hooks(layer_gpu_map):
         layer.register_forward_pre_hook(forward_hook_wrapper(gpu_id), with_kwargs=True)
         prev_gpu_id = gpu_id
 
+def naive_assign_layers_to_gpus(layers):
+    # naively assign layers to cuda visible devices
+    try:
+        gpu_index = [int(k) for k in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+    except KeyError:
+        gpu_index = [x["id"] for x in nvidia_smi_memory_info()]
+
+    num_layer_per_gpu = (len(layers) + len(gpu_index) - 1) // len(gpu_index)
+    layer_gpu_map = {layer: i // num_layer_per_gpu for i, layer in enumerate(layers)}
+    for layer_id, gpu_id in enumerate(layer_gpu_map.values()):
+        layer = layers[layer_id]
+        if layer_id == len(layers) - 1:
+            gpu_id = layer_gpu_map[layers[0]]  # map last layer with first layer
+            layer_gpu_map[layer] = gpu_id
+        layer.to(f"cuda:{gpu_id}")
+        layer.device = f"cuda:{gpu_id}"
+
+    return layer_gpu_map
 
 def map_layers_to_multi_gpus(layers):
 
-    # layer_gpu_map = assign_layers_to_gpus(layers)
-    
-    # naively assign layers to cuda visible devices
-    gpu_index = [int(k) for k in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
-    num_layer_per_gpu = (len(layers) + len(gpu_index) - 1) // len(gpu_index)
-    layer_gpu_map = {layer: gpu_index[i // num_layer_per_gpu] for i, layer in enumerate(layers)}
+    layer_gpu_map = naive_assign_layers_to_gpus(layers)
 
     add_forward_hooks(layer_gpu_map)
 
