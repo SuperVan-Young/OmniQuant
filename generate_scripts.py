@@ -25,15 +25,15 @@ DEMO_MODEL_LIST = [
 
 SMALL_MODEL_LIST = [
     "llama-7b-hf-transformers-4.29",
-    "llama-13b-hf-transformers-4.29",
     "opt-6.7b",
+    "llama-13b-hf-transformers-4.29",
     "opt-13b",
 ]
 
 LARGE_MODEL_LIST = [
     "opt-30b",
-    "opt-66b",
     "llama-30b-hf-transformers-4.29",
+    "opt-66b",
     "llama-66b-hf-transformers-4.29",
 ]
 
@@ -41,12 +41,12 @@ FULL_MODEL_LIST = [
     "opt-1.3b",
     "opt-2.7b",
     "opt-6.7b",
-    "opt-13b",
-    "opt-30b",
-    "opt-66b",
     "llama-7b-hf-transformers-4.29",
+    "opt-13b",
     "llama-13b-hf-transformers-4.29",
+    "opt-30b",
     "llama-30b-hf-transformers-4.29",
+    "opt-66b",
     "llama-66b-hf-transformers-4.29",
 ]
 
