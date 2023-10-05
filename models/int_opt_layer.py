@@ -321,7 +321,7 @@ class QuantOPTDecoderLayer(nn.Module):
 
         # Fully Connected
         hidden_states_shape = hidden_states.shape
-        hidden_states = hidden_states.reshape(-1, hidden_states.size(-1))
+        # hidden_states = hidden_states.reshape(-1, hidden_states.size(-1))
         residual = hidden_states
 
         # residual.add_(hidden_states.to(residual.dtype))
