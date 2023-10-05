@@ -132,15 +132,22 @@ class UniformAffineQuantizer(nn.Module):
         Set outliers to 0 to be friendly for quantizing normal values,
         """
         if self.high_prec_channels:
+            assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
             mask = torch.zeros_like(x, dtype=torch.bool)
             if len(mask.shape) == 3:
+                # linear activation
                 mask[:, :, self.high_prec_channels] = True
+            elif len(mask.shape) == 4:
+                # matmul activation
+                bsz, num_head, seq_len, head_dim = mask.shape
+                mask = mask.transpose(1, 2).view(bsz, seq_len, -1)
+                mask[:, :, self.high_prec_channels] = True
+                mask = mask.view(bsz, seq_len, num_head, head_dim).transpose(1, 2)
             else:
-                raise RuntimeError(f"Only support 3D tensor now, got shape {mask.shape}")
+                raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {mask.shape}")
             x_normal = torch.where(mask, torch.zeros_like(x), x)
             x_outlier = torch.where(mask, x, torch.zeros_like(x))
-            x_normal = self.forward_normal(x_normal)
-            x_dequant = x_normal + x_outlier
+            x_dequant = self.forward_normal(x_normal) + x_outlier
         else:
             x_dequant = self.forward_normal(x)
         return x_dequant
