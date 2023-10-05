@@ -85,14 +85,10 @@ class UniformAffineQuantizer(nn.Module):
         self.qmax = 2 ** (n_bits) - 1
 
     def fake_quant(self, x, scale, round_zero_point):
-        if self.deficiency > 0:
-            pad_zeros = torch.zeros((x.shape[0],self.deficiency),dtype=x.dtype,device=x.device)
-            x = torch.cat((x,pad_zeros),dim=1)
-        
         if self.group_size:
-            assert len(x.shape)==2, "only support linear layer now"
-            dim1, dim2 = x.shape
-            x = x.reshape(-1, self.group_size)
+            x_org_shape = x.shape
+            x = self.group_tensor(x)
+
         x_int = round_ste(x / scale)
         if round_zero_point is not None:
             x_int = x_int.add(round_zero_point)
@@ -101,10 +97,9 @@ class UniformAffineQuantizer(nn.Module):
         if round_zero_point is not None:
             x_dequant = x_dequant.sub(round_zero_point)
         x_dequant = x_dequant.mul(scale)
+
         if self.group_size:
-            x_dequant = x_dequant.reshape(dim1, dim2)
-        if self.deficiency > 0:
-            x_dequant = x_dequant[:,:-self.deficiency]
+            x_dequant = self.degroup_tensor(x_dequant, x_org_shape)
         return x_dequant
 
     def keep_high_prec(self, x, x_quant):
@@ -124,7 +119,7 @@ class UniformAffineQuantizer(nn.Module):
             return x.mul_(2**self.n_bits-1).round_().div_(2**self.n_bits-1)
 
         if self.dynamic_method == "per_token" or self.dynamic_method == "per_channel":
-            self.per_token_dynamic_calibration(x)
+            self.per_token_dynamic_calibration(x)  # x remains the same shape
         else:
             raise NotImplementedError()   
 
@@ -136,28 +131,50 @@ class UniformAffineQuantizer(nn.Module):
         """
         Set outliers to 0 to be friendly for quantizing normal values,
         """
-        mask = torch.zeros_like(x, dtype=torch.bool)
-        if len(mask.shape) == 3:
-            mask[:, :, self.high_prec_channels] = True
+        if self.high_prec_channels:
+            mask = torch.zeros_like(x, dtype=torch.bool)
+            if len(mask.shape) == 3:
+                mask[:, :, self.high_prec_channels] = True
+            else:
+                raise RuntimeError(f"Only support 3D tensor now, got shape {mask.shape}")
+            x_normal = torch.where(mask, torch.zeros_like(x), x)
+            x_outlier = torch.where(mask, x, torch.zeros_like(x))
+            x_normal = self.forward_normal(x_normal)
+            x_dequant = x_normal + x_outlier
         else:
-            raise RuntimeError(f"Only support 3D tensor now, got shape {mask.shape}")
-        x_normal = torch.where(mask, torch.zeros_like(x), x)
-        x_outlier = torch.where(mask, x, torch.zeros_like(x))
-        x_normal = self.forward_normal(x_normal)
-        x_dequant = x_normal + x_outlier
+            x_dequant = self.forward_normal(x)
         return x_dequant
 
+    def group_tensor(self, x):
+        assert self.group_size is not None
+        if self.deficiency == 0:
+            x_grouped = x.reshape(-1,self.group_size)
+        else:
+            pad_zeros_shape = list(x.shape)[:-1] + [x.shape[-1] + self.deficiency]
+            pad_zeros = torch.zeros(pad_zeros_shape, dtype=x.dtype,device=x.device)
+            x_grouped = torch.cat((x,pad_zeros),dim=1).reshape(-1,self.group_size)
+        return x_grouped
+
+    def degroup_tensor(self, x_grouped, x_org_shape):
+        if self.deficiency == 0:
+            shape = x_org_shape
+        else:
+            shape = list(x_org_shape)
+            shape[-1] = shape[-1] + self.deficiency
+        x = x_grouped.reshape(shape)
+        if self.deficiency > 0:
+            x = x[...,:-self.deficiency]
+        return x
+
     def per_token_dynamic_calibration(self, x):
+        # Modified version keeps the shape of x, while getting scale and zero_points
         if self.group_size:
-            if self.deficiency == 0:
-                x = x.reshape(-1,self.group_size)
-            else:
-                pad_zeros = torch.zeros((x.shape[0],self.deficiency),dtype=x.dtype,device=x.device)
-                x = torch.cat((x,pad_zeros),dim=1)
-                x = x.reshape(-1,self.group_size)
+            x_ = self.group_tensor(x)
+        else:
+            x_ = x
         reduce_shape = [-1]
-        xmin = x.amin(reduce_shape, keepdim=True)
-        xmax =  x.amax(reduce_shape, keepdim=True)
+        xmin = x_.amin(reduce_shape, keepdim=True)
+        xmax =  x_.amax(reduce_shape, keepdim=True)
         if self.lwc:
             xmax = self.sigmoid(self.upbound_factor)*xmax
             xmin = self.sigmoid(self.lowbound_factor)*xmin
