@@ -96,7 +96,8 @@ def evaluate(lm, args, logger):
 
 
     if args.eval_ppl:
-        for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
+        for dataset in ["wikitext2", "ptb", "c4"]:
+        # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
             cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
             if os.path.exists(cache_testloader):
                 testloader = torch.load(cache_testloader)
@@ -230,10 +231,10 @@ def main():
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
-    parser.add_argument("--high-prec-ratio", type=float, default=0.01, help="ratio of high precision activation channels")
+    parser.add_argument("--high-prec-ratio", type=float, default=0, help="ratio of high precision activation channels")
     parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
-    parser.add_argument("--aow-quant-act-qkv", default=False, action="store_true", help="quantize qkv_proj activation")
-    parser.add_argument("--aow-quant-act-out", default=False, action="store_true", help="quantize o_proj activation")
+    parser.add_argument("--aow-quant-act-qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
+    parser.add_argument("--aow-quant-act-oproj", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
     parser.add_argument("--aow-quant-act-fc2", default=False, action="store_true", help="quantize fc2 activation")
 
@@ -242,6 +243,10 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
+
+    if args.quant_method == 'aowquant':
+        print("Currently for aowquant, we manually select which activation to quantize.")
+        print("What's more, we do not quantize weight for now.")
 
     # check
     if args.epochs > 0:
