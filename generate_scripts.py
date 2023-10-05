@@ -135,7 +135,7 @@ def gen_single_experiment_script(
     assert "abits" in extra_configs
 
     scripts = f"""
-CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py
+CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
 --eval_ppl --epoch 0 --quant-method aowquant \\
 --model $MODEL_DIR/{model_name} \\
 --output_dir $OUTPUT_DIR/{model_name} \\
@@ -234,4 +234,4 @@ def gen_all_scripts(
 
     
 if __name__ == "__main__":
-    gen_all_scripts()
+    gen_all_scripts(SMALL_MODEL_LIST)
