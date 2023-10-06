@@ -97,12 +97,35 @@ def aowquant(
                 module.use_act_quant = getattr(args, f"aow_quant_act_{linear_category}")
                 # logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
-                # set high precision channels
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
                 act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
-                num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
-                _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
-                module.act_quantizer.high_prec_channels = [int(i) for i in high_prec_channels]
+                
+                # set high precision channels
+                if args.act_group_size is None:
+                    # select high precision channels from all channels
+                    num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
+                    _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
+                    high_prec_channel_mask = torch.nn.functional.one_hot(high_prec_channels, num_classes=act_scale.shape[0]).bool()
+                    module.act_quantizer.high_prec_channel_mask = high_prec_channel_mask
+                else:
+                    # select high precision channels from each group
+                    num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
+                    deficiency = args.act_group_size - act_scale.shape[0] % args.act_group_size
+                    high_prec_channel_per_group = max(1, int(args.act_group_size * args.high_prec_ratio))
+                    logger.info(f"High precision channels per group: {high_prec_channel_per_group}")
+
+                    # pad zero and group act_state
+                    if deficiency == 0:
+                        act_scale_grouped = act_scale.reshape(num_groups, args.act_group_size)
+                    else:
+                        pad_zeros = torch.zeros([deficiency], dtype=dtype, device=dev)
+                        act_scale_grouped = torch.cat([act_scale, pad_zeros], dim=-1).reshape(num_groups, args.act_group_size)
+                    
+                    # select topk for each group
+                    _, high_prec_channels = torch.topk(act_scale_grouped, high_prec_channel_per_group, dim=-1)
+                    high_prec_channel_mask = torch.nn.fnctional.one_hot(high_prec_channels, num_classes=args.act_group_size).bool()
+                    module.act_quantizer.high_prec_channel_mask = high_prec_channel_mask.reshape(-1)
+
 
             elif isinstance(module, QuantMatmul):
                 if "qkt_matmul" in name:

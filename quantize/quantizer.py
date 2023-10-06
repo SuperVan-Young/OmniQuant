@@ -60,7 +60,7 @@ class UniformAffineQuantizer(nn.Module):
         self.lwc = lwc
 
         # keep certain input channels of activation at high precision
-        self.high_prec_channels = []
+        self.high_prec_channel_mask = None
         
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
@@ -132,14 +132,16 @@ class UniformAffineQuantizer(nn.Module):
         """
         Set outliers to 0 to be friendly for quantizing normal values,
         """
-        if self.high_prec_channels:
+        if self.high_prec_channel_mask:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
-            mask = torch.zeros_like(x, dtype=torch.bool)
+            mask = self.high_prec_channel_mask
             if len(mask.shape) == 3:
                 # linear activation
-                mask[:, :, self.high_prec_channels] = True
+                assert len(mask.shape) == 1
+                mask = mask.view(1, 1, -1)
             elif len(mask.shape) == 4:
                 # matmul activation
+                raise NotImplementedError
                 bsz, num_head, seq_len, head_dim = mask.shape
                 mask = mask.transpose(1, 2).view(bsz, seq_len, -1)
                 mask[:, :, self.high_prec_channels] = True
@@ -171,7 +173,7 @@ class UniformAffineQuantizer(nn.Module):
         
         # derive grouped shape
         num_group = math.ceil(x.shape[-1] / self.group_size)
-        deficiency = x.shape[-1] % self.group_size
+        deficiency = self.group_size - x.shape[-1] % self.group_size
         x_grouped_shape = list(x.shape[:-1]) + [num_group, self.group_size]
 
         if deficiency == 0:
@@ -184,7 +186,7 @@ class UniformAffineQuantizer(nn.Module):
 
     def degroup_tensor(self, x_grouped, x_org_shape):
 
-        deficiency = x_org_shape[-1] % self.group_size
+        deficiency = self.group_size - x_org_shape[-1] % self.group_size
         x_degrouped = x_grouped.reshape(*x_grouped.shape[:-2], -1)
 
         if deficiency > 0:
