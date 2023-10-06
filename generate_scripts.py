@@ -52,7 +52,9 @@ FULL_MODEL_LIST = [
 ]
 
 CONFIG_DICT = {
+    ###############################################
     # Baseline Experiments
+    ###############################################
 
     # FULL PRECISION
     "W16A16": {
@@ -144,9 +146,11 @@ CONFIG_DICT = {
         "aow-quant-act-v": None,
     },
 
+    ###############################################
     # Modifications
+    ###############################################
 
-    # qkvproj with FP16 outliers
+    # qkvproj: outlier
     "qkvproj_W16A4_ol0.01": {
         "wbits": 16,
         "abits": 4,
@@ -154,7 +158,7 @@ CONFIG_DICT = {
         "high-prec-ratio": 0.01,
     },
 
-    # fc1 with FP16 outliers
+    # fc1: outlier
     "fc1_W16A4_ol0.01": {
         "wbits": 16,
         "abits": 4,
@@ -162,7 +166,9 @@ CONFIG_DICT = {
         "high-prec-ratio": 0.01,
     },
 
-    # fc2 with groupwise quantization
+    # fc2: reorder + groupwise + outlier
+
+    # groupwise
     "fc2_W16A4_g128": {
         "wbits": 16,
         "abits": 4,
@@ -170,13 +176,59 @@ CONFIG_DICT = {
         "act_group_size": 128,
     },
 
-    # oproj with groupwise quantization
+    # outlier
+    "fc2_W16A4_g128_ol1": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+        "high-prec-ratio": 0.0078125,  # 1 / 128
+    },
+
+    # groupwise + outlier
+    "fc2_W16A4_g128_ol1": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+        "act_group_size": 128,
+        "high-prec-ratio": 0.0078125,  # 1 / 128
+    },
+
+    # reorder + groupwise
+    # TODO: add reorder argument
+
+    # reorder + groupwise + outlier
+    # TODO: add reorder argument
+
+    # oproj: groupwise + outlier
+
+    # groupwise
     "oproj_W16A4_g128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,
         "act_group_size": 128,
     },
+
+    # outlier
+    "oproj_W16A4_g128_ol1": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-oproj": None,
+        "high-prec-ratio": 0.0078125,  # 1 / 128
+    },
+
+    # groupwise + outlier
+    "oproj_W16A4_g128_ol1": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-oproj": None,
+        "act_group_size": 128,
+        "high-prec-ratio": 0.0078125,  # 1 / 128
+    },
+    
+    # q/k/v: (already groupwise) + outlier
+    #TODO: add scripts
+
 }
 
 def gen_single_experiment_script(
