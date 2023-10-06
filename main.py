@@ -237,6 +237,9 @@ def main():
     parser.add_argument("--aow-quant-act-oproj", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
     parser.add_argument("--aow-quant-act-fc2", default=False, action="store_true", help="quantize fc2 activation")
+    parser.add_argument("--aow-quant-act-q", default=False, action="store_true", help="quantize q activation")
+    parser.add_argument("--aow-quant-act-k", default=False, action="store_true", help="quantize k activation")
+    parser.add_argument("--aow-quant-act-v", default=False, action="store_true", help="quantize v activation")
 
     args = parser.parse_args()
     random.seed(args.seed)

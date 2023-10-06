@@ -6,6 +6,7 @@ from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
 from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
+from quantize.int_matmul import QuantMatmul
 from quantize.omniquant import get_named_linears
 from contextlib import nullcontext
 import copy
@@ -102,6 +103,13 @@ def aowquant(
                 num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
                 _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
                 module.act_quantizer.high_prec_channels = [int(i) for i in high_prec_channels]
+
+            elif isinstance(module, QuantMatmul):
+                if "qkt_matmul" in name:
+                    module.use_x1_quant = getattr(args, "aow-quant-act-q")
+                    module.use_x2_quant = getattr(args, "aow-quant-act-k")
+                elif "pv_matmul" in name:
+                    module.use_x2_quant = getattr(args, "aow-quant-act-v")
 
         qlayer.register_scales_and_zeros()
         qlayer.half()

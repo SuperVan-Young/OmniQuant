@@ -23,17 +23,32 @@ class QuantMatMul(nn.Module):
 
         self.disable_act_quant = disable_act_quant
 
+        # hack to control quantization of x1 and x2 individually
+        # if these variables are not set, follow the default behaviour
+        self.use_x1_quant = None
+        self.use_x2_quant = None
+
 
     def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         self.use_weight_quant = weight_quant
         self.use_act_quant = act_quant
 
     def quant_x1(self, x1):
+        if self.use_x1_quant is not None:
+            if self.use_x1_quant:
+                x1 = self.x1_quantizer(x1)
+            return x1
+
         if self.use_act_quant:
             x1 = self.x1_quantizer(x1)
         return x1
 
     def quant_x2(self, x2):
+        if self.use_x2_quant is not None:
+            if self.use_x2_quant:
+                x2 = self.x1_quantizer(x2)
+            return x2
+
         if self.use_act_quant:
             x2 = self.x2_quantizer(x2)
         return x2
