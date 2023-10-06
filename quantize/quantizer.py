@@ -132,14 +132,14 @@ class UniformAffineQuantizer(nn.Module):
         """
         Set outliers to 0 to be friendly for quantizing normal values,
         """
-        if self.high_prec_channel_mask:
+        if self.high_prec_channel_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
             mask = self.high_prec_channel_mask
-            if len(mask.shape) == 3:
+            if len(x.shape) == 3:
                 # linear activation
                 assert len(mask.shape) == 1
                 mask = mask.view(1, 1, -1)
-            elif len(mask.shape) == 4:
+            elif len(x.shape) == 4:
                 # matmul activation
                 raise NotImplementedError
                 bsz, num_head, seq_len, head_dim = mask.shape
@@ -147,7 +147,7 @@ class UniformAffineQuantizer(nn.Module):
                 mask[:, :, self.high_prec_channels] = True
                 mask = mask.view(bsz, seq_len, num_head, head_dim).transpose(1, 2)
             else:
-                raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {mask.shape}")
+                raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {x.shape}")
             x_normal = torch.where(mask, torch.zeros_like(x), x)
             x_outlier = torch.where(mask, x, torch.zeros_like(x))
             x_dequant = self.forward_normal(x_normal) + x_outlier
@@ -173,7 +173,7 @@ class UniformAffineQuantizer(nn.Module):
         
         # derive grouped shape
         num_group = math.ceil(x.shape[-1] / self.group_size)
-        deficiency = self.group_size - x.shape[-1] % self.group_size
+        deficiency = num_group * self.group_size - x.shape[-1]
         x_grouped_shape = list(x.shape[:-1]) + [num_group, self.group_size]
 
         if deficiency == 0:
@@ -186,7 +186,8 @@ class UniformAffineQuantizer(nn.Module):
 
     def degroup_tensor(self, x_grouped, x_org_shape):
 
-        deficiency = self.group_size - x_org_shape[-1] % self.group_size
+        num_group = math.ceil(x_org_shape[-1] / self.group_size)
+        deficiency = num_group * self.group_size - x_org_shape[-1]
         x_degrouped = x_grouped.reshape(*x_grouped.shape[:-2], -1)
 
         if deficiency > 0:

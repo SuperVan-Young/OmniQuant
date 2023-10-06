@@ -6,7 +6,7 @@ from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
 from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
-from quantize.int_matmul import QuantMatmul
+from quantize.int_matmul import QuantMatMul
 from quantize.omniquant import get_named_linears
 from contextlib import nullcontext
 import copy
@@ -97,6 +97,9 @@ def aowquant(
                 module.use_act_quant = getattr(args, f"aow_quant_act_{linear_category}")
                 # logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
+                if not module.use_act_quant:
+                    continue
+
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
                 act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
                 
@@ -110,9 +113,9 @@ def aowquant(
                 else:
                     # select high precision channels from each group
                     num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
-                    deficiency = args.act_group_size - act_scale.shape[0] % args.act_group_size
+                    deficiency = num_groups * args.act_group_size - act_scale.shape[0]
                     high_prec_channel_per_group = max(1, int(args.act_group_size * args.high_prec_ratio))
-                    logger.info(f"High precision channels per group: {high_prec_channel_per_group}")
+                    # logger.info(f"High precision channels per group: {high_prec_channel_per_group}")
 
                     # pad zero and group act_state
                     if deficiency == 0:
@@ -123,16 +126,16 @@ def aowquant(
                     
                     # select topk for each group
                     _, high_prec_channels = torch.topk(act_scale_grouped, high_prec_channel_per_group, dim=-1)
-                    high_prec_channel_mask = torch.nn.fnctional.one_hot(high_prec_channels, num_classes=args.act_group_size).bool()
+                    high_prec_channel_mask = torch.nn.functional.one_hot(high_prec_channels, num_classes=args.act_group_size).bool()
                     module.act_quantizer.high_prec_channel_mask = high_prec_channel_mask.reshape(-1)
 
 
-            elif isinstance(module, QuantMatmul):
+            elif isinstance(module, QuantMatMul):
                 if "qkt_matmul" in name:
-                    module.use_x1_quant = getattr(args, "aow-quant-act-q")
-                    module.use_x2_quant = getattr(args, "aow-quant-act-k")
+                    module.use_x1_quant = getattr(args, "aow_quant_act_q")
+                    module.use_x2_quant = getattr(args, "aow_quant_act_k")
                 elif "pv_matmul" in name:
-                    module.use_x2_quant = getattr(args, "aow-quant-act-v")
+                    module.use_x2_quant = getattr(args, "aow_quant_act_v")
 
         qlayer.register_scales_and_zeros()
         qlayer.half()
