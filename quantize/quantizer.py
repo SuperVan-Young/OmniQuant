@@ -65,6 +65,7 @@ class UniformAffineQuantizer(nn.Module):
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
             if group_size:
+                raise RuntimeError("New version of grouping does not support lwc yet.")
                 dim1 = int(shape[0]*math.ceil(shape[1]/group_size))
                 self.deficiency = shape[-1]%group_size
                 if self.deficiency > 0:
@@ -150,28 +151,45 @@ class UniformAffineQuantizer(nn.Module):
             x_dequant = self.forward_normal(x_normal) + x_outlier
         else:
             x_dequant = self.forward_normal(x)
+
+        has_nan = torch.isnan(x_dequant).any()
+        if has_nan:
+            # print("NaN detected in quantized tensor.")
+            # print(self.scale.shape)
+            # print(torch.min(self.scale))
+            # print(torch.max(self.scale))
+            # print(self.round_zero_point.shape)
+            # print(torch.isnan(self.round_zero_point).any())
+            raise RuntimeError("NaN detected in quantized tensor.")
         return x_dequant
 
     def group_tensor(self, x):
+        """
+        Group the tensor at last dimension, retain all remaining dimensions
+        """
         assert self.group_size is not None
-        if self.deficiency == 0:
-            x_grouped = x.reshape(-1,self.group_size)
+        
+        # derive grouped shape
+        num_group = math.ceil(x.shape[-1] / self.group_size)
+        deficiency = x.shape[-1] % self.group_size
+        x_grouped_shape = list(x.shape[:-1]) + [num_group, self.group_size]
+
+        if deficiency == 0:
+            x_grouped = x.reshape(*x_grouped_shape)
         else:
-            pad_zeros_shape = list(x.shape)[:-1] + [x.shape[-1] + self.deficiency]
+            pad_zeros_shape = list(x.shape)[:-1] + [deficiency]
             pad_zeros = torch.zeros(pad_zeros_shape, dtype=x.dtype,device=x.device)
-            x_grouped = torch.cat((x,pad_zeros),dim=1).reshape(-1,self.group_size)
+            x_grouped = torch.cat((x,pad_zeros),dim=1).reshape(*x_grouped_shape)
         return x_grouped
 
     def degroup_tensor(self, x_grouped, x_org_shape):
-        if self.deficiency == 0:
-            shape = x_org_shape
-        else:
-            shape = list(x_org_shape)
-            shape[-1] = shape[-1] + self.deficiency
-        x = x_grouped.reshape(shape)
-        if self.deficiency > 0:
-            x = x[...,:-self.deficiency]
-        return x
+
+        deficiency = x_org_shape[-1] % self.group_size
+        x_degrouped = x_grouped.reshape(*x_grouped[:-2], -1)
+
+        if deficiency > 0:
+            x_degrouped = x_degrouped[...,:-self.deficiency]
+        return x_degrouped
 
     def per_token_dynamic_calibration(self, x):
         # Modified version keeps the shape of x, while getting scale and zero_points
@@ -194,7 +212,6 @@ class UniformAffineQuantizer(nn.Module):
             range = xmax - xmin
             scale = range / (2**self.n_bits-1)
             self.scale = scale.clamp(min=CLIPMIN, max=1e4)
-            self.scale = scale
             zero_point = -(xmin) / (self.scale)
         self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()
         
