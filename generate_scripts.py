@@ -41,7 +41,7 @@ MEDIAM_MODEL_LIST = [
 
 LARGE_MODEL_LIST = [
     "opt-66b",
-    "llama-66b-hf-transformers-4.29",
+    "llama-65b-hf-transformers-4.29",
 ]
 
 FULL_MODEL_LIST = [
@@ -55,7 +55,7 @@ FULL_MODEL_LIST = [
     "opt-30b",
     "llama-30b-hf-transformers-4.29",
     "opt-66b",
-    "llama-66b-hf-transformers-4.29",
+    "llama-65b-hf-transformers-4.29",
 ]
 
 CONFIG_DICT = {
