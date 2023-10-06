@@ -7,6 +7,7 @@ import re
 import os
 import time
 import pdb
+from tqdm import tqdm
 
 
 def nvidia_smi_memory_info():
@@ -166,7 +167,7 @@ def naive_assign_layers_to_gpus(layers):
     layer_gpu_map = {layer: (i + 1) // num_layer_per_gpu for i, layer in enumerate(layers)}
     layer_gpu_map[layers[-1]] = layer_gpu_map[layers[0]]  # map last layer with first layer
 
-    for layer_id, gpu_id in enumerate(layer_gpu_map.values()):
+    for layer_id, gpu_id in tqdm(enumerate(layer_gpu_map.values()), desc="map layers to gpus"):
         layer = layers[layer_id]
         # print(f"map layer {layer_id} to gpu {gpu_id}")
         layer.to(f"cuda:{gpu_id}")
