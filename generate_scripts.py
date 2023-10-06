@@ -5,12 +5,12 @@ import math
 
 os.makedirs("./scripts/aow", exist_ok=True)
 
-EXPERIMENT_SERVER = "A6000"
+EXPERIMENT_SERVER = "V100"
 
 if EXPERIMENT_SERVER == "V100":
     GPU_LIST = [f"{i}" for i in range(8)]
     GPU_MEMORY = 32
-    MODEL_DIR = "/home/xuechenhao/huggingface"
+    MODEL_DIR = "/home/xuechenhao/hugginface"
 elif EXPERIMENT_SERVER == "A6000":
     GPU_LIST = [f"{i}" for i in range(4)]
     GPU_MEMORY = 48
@@ -38,8 +38,9 @@ LARGE_MODEL_LIST = [
 ]
 
 FULL_MODEL_LIST = [
-    "opt-1.3b",
-    "opt-2.7b",
+    # TODO: small model have groupsize problem
+    # "opt-1.3b",
+    # "opt-2.7b",
     "opt-6.7b",
     "llama-7b-hf-transformers-4.29",
     "opt-13b",
@@ -51,6 +52,8 @@ FULL_MODEL_LIST = [
 ]
 
 CONFIG_DICT = {
+    # Baseline Experiments
+
     # FULL PRECISION
     "W16A16": {
         "wbits": 16,
@@ -105,7 +108,44 @@ CONFIG_DICT = {
         "aow-quant-act-fc2": None,
     },
 
+    # q W16A4 & W16A8
+    "q_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-q": None,
+    },
+    "q_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-q": None,
+    },
+
+    # k W16A4 & W16A8
+    "k_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-k": None,
+    },
+    "k_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-k": None,
+    },
+
+    # v W16A4 & W16A8
+    "v_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-v": None,
+    },
+    "v_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-v": None,
+    },
+
     # Modifications
+
     # qkvproj with FP16 outliers
     "qkvproj_W16A4_ol0.01": {
         "wbits": 16,
@@ -120,6 +160,22 @@ CONFIG_DICT = {
         "abits": 4,
         "aow-quant-act-fc1": None,
         "high-prec-ratio": 0.01,
+    },
+
+    # fc2 with groupwise quantization
+    "fc2_W16A4_g128": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+        "act_group_size": 128,
+    },
+
+    # oproj with groupwise quantization
+    "oproj_W16A4_g128": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-oproj": None,
+        "act_group_size": 128,
     },
 }
 
@@ -234,4 +290,4 @@ def gen_all_scripts(
 
     
 if __name__ == "__main__":
-    gen_all_scripts(LARGE_MODEL_LIST)
+    gen_all_scripts(DEMO_MODEL_LIST)
