@@ -5,7 +5,7 @@ import math
 
 os.makedirs("./scripts/aow", exist_ok=True)
 
-EXPERIMENT_SERVER = "V100"
+EXPERIMENT_SERVER = "A6000"
 
 if EXPERIMENT_SERVER == "V100":
     GPU_LIST = [f"{i}" for i in range(8)]
@@ -197,7 +197,7 @@ def pack_experiments(
 
         for model_name in model_list:
             num_gpus = model_gpu_dict[model_name]
-            if used_gpu + num_gpus >= len(GPU_LIST):
+            if used_gpu + num_gpus > len(GPU_LIST):
                 used_gpu = 0
                 f.write("wait\n\n")
             available_gpus = ",".join(GPU_LIST[used_gpu:used_gpu+num_gpus])
@@ -234,4 +234,4 @@ def gen_all_scripts(
 
     
 if __name__ == "__main__":
-    gen_all_scripts(SMALL_MODEL_LIST)
+    gen_all_scripts(LARGE_MODEL_LIST)
