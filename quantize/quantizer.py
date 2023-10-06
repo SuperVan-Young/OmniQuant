@@ -185,7 +185,7 @@ class UniformAffineQuantizer(nn.Module):
     def degroup_tensor(self, x_grouped, x_org_shape):
 
         deficiency = x_org_shape[-1] % self.group_size
-        x_degrouped = x_grouped.reshape(*x_grouped[:-2], -1)
+        x_degrouped = x_grouped.reshape(*x_grouped.shape[:-2], -1)
 
         if deficiency > 0:
             x_degrouped = x_degrouped[...,:-self.deficiency]
