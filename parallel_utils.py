@@ -163,12 +163,12 @@ def naive_assign_layers_to_gpus(layers):
         gpu_index = [x["id"] for x in nvidia_smi_memory_info()]
 
     num_layer_per_gpu = (len(layers) + len(gpu_index) - 1) // len(gpu_index)
-    layer_gpu_map = {layer: i // num_layer_per_gpu for i, layer in enumerate(layers)}
+    layer_gpu_map = {layer: (i + 1) // num_layer_per_gpu for i, layer in enumerate(layers)}
+    layer_gpu_map[layers[-1]] = layer_gpu_map[layers[0]]  # map last layer with first layer
+
     for layer_id, gpu_id in enumerate(layer_gpu_map.values()):
         layer = layers[layer_id]
-        if layer_id == len(layers) - 1:
-            gpu_id = layer_gpu_map[layers[0]]  # map last layer with first layer
-            layer_gpu_map[layer] = gpu_id
+        # print(f"map layer {layer_id} to gpu {gpu_id}")
         layer.to(f"cuda:{gpu_id}")
         layer.device = f"cuda:{gpu_id}"
 
@@ -184,3 +184,4 @@ def map_layers_to_multi_gpus(layers):
 if __name__ == "__main__":
     info = get_gpu_memory()
     print(info)
+    naive_assign_layers_to_gpus([nn.Linear(10, 10) for _ in range(10)])

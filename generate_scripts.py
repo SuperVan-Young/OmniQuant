@@ -248,6 +248,8 @@ CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
 --model $MODEL_DIR/{model_name} \\
 --output_dir $OUTPUT_DIR/{model_name} \\
 """
+    if len(available_gpus.split(",")) > 1:
+        scripts += "--multigpu \\\n"
     for config_name, config_val in extra_configs.items():
         if config_val is None:
             scripts += f"--{config_name} \\\n"
@@ -342,4 +344,4 @@ def gen_all_scripts(
 
     
 if __name__ == "__main__":
-    gen_all_scripts(DEMO_MODEL_LIST)
+    gen_all_scripts(FULL_MODEL_LIST)
