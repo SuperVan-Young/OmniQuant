@@ -5,16 +5,20 @@ import math
 
 os.makedirs("./scripts/aow", exist_ok=True)
 
-EXPERIMENT_SERVER = "V100"
+EXPERIMENT_SERVER = "A100"
 
 if EXPERIMENT_SERVER == "V100":
-    GPU_LIST = [f"{i}" for i in range(8)]
+    GPU_LIST = [f"{i}" for i in range(2,8)]
     GPU_MEMORY = 32
     MODEL_DIR = "/home/xuechenhao/hugginface"
 elif EXPERIMENT_SERVER == "A6000":
     GPU_LIST = [f"{i}" for i in range(4)]
     GPU_MEMORY = 48
     MODEL_DIR = "/home/zhangchen/hugginface"
+elif EXPERIMENT_SERVER == "A100":
+    GPU_LIST = [f"{i}" for i in range(2)]
+    GPU_MEMORY = 80
+    MODEL_DIR = "/home/xuechenhao/hugginface"
 else:
     raise NotImplementedError
 
@@ -30,9 +34,12 @@ SMALL_MODEL_LIST = [
     "opt-13b",
 ]
 
-LARGE_MODEL_LIST = [
+MEDIAM_MODEL_LIST = [
     "opt-30b",
     "llama-30b-hf-transformers-4.29",
+]
+
+LARGE_MODEL_LIST = [
     "opt-66b",
     "llama-66b-hf-transformers-4.29",
 ]
@@ -272,7 +279,7 @@ def allocate_gpu(model_list) -> dict:
             raise NotImplementedError
         
     def _allocate_gpu(model_name):
-        weight_size_in_GB = parse_model_size(model_name) * 2.5  # spare some room for runtime memory
+        weight_size_in_GB = parse_model_size(model_name) * 2.4  # spare some room for runtime memory
         num_gpu = math.ceil(weight_size_in_GB / GPU_MEMORY)
         assert num_gpu <= len(GPU_LIST), f"Model {model_name} requires {num_gpu} GPUs, but only {len(GPU_LIST)} GPUs are available."
         return num_gpu
@@ -327,21 +334,25 @@ def gen_all_scripts(
     """
     Generate scripts for running all experiments.
     """
+    script_dir = f"./scripts/aow_{EXPERIMENT_SERVER}"
+    os.makedirs(script_dir, exist_ok=True)
+
     for config_name, config_val in CONFIG_DICT.items():
         pack_experiments(
             model_list=model_list,
             model_dir=MODEL_DIR,
             output_dir=f"./output/{config_name}",
-            script_path=f"./scripts/aow/{config_name}.sh",
+            script_path=f"{script_dir}/{config_name}.sh",
             extra_configs=config_val,
         )
     
     # Generate an entry script
-    with open("./scripts/aow/run_all.sh", "w") as f:
+    with open(os.path.join(script_dir, 'run_all.sh'), "w") as f:
         f.write("#!/bin/bash\n\n")
         for config_name in CONFIG_DICT.keys():
-            f.write(f"bash ./scripts/aow/{config_name}.sh\n")
+            f.write(f"bash {script_dir}/{config_name}.sh\n")
 
     
 if __name__ == "__main__":
-    gen_all_scripts(FULL_MODEL_LIST)
+    # gen_all_scripts(SMALL_MODEL_LIST + MEDIAM_MODEL_LIST)
+    gen_all_scripts(LARGE_MODEL_LIST)
