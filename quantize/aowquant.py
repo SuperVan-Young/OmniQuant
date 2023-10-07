@@ -8,6 +8,7 @@ from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
 from quantize.int_matmul import QuantMatMul
 from quantize.omniquant import get_named_linears
+from quantize.quantizer import pad_zeros
 from contextlib import nullcontext
 import copy
 import math
@@ -168,7 +169,68 @@ def aowquant(
                 act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
 
                 if args.act_reorder:
-                    # select outlier channels (regardless of grouping) before reordering
+                    if args.act_group_size:
+                        # enlarge outlier ratio for alignment
+                        num_outlier_per_group = math.ceil(args.act_group_size * args.outlier_ratio)
+                        args.outlier_ratio = num_outlier_per_group / args.act_group_size
+
+                    # select outlier channels
+                    outlier_index = get_outlier_channel_index(
+                        act_scale,
+                        args.outlier_ratio,
+                        group_size = None,  # ignore grouping for outlier selection
+                        outlier_metric = args.outlier_metric,
+                        logger = logger,
+                    )
+
+                    # reorder normal channels
+                    outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
+                    normal_index = get_reorder_channel_index(
+                        act_scale,
+                        outlier_mask = outlier_mask,
+                        reorder_metric = args.reorder_metric,
+                        logger = logger,
+                    )
+
+                    # concat reorder index
+                    if args.act_group_size:
+                        num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
+
+                        num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
+                        num_normal_per_group = args.act_group_size - num_outlier_per_group
+
+                        if num_outlier_per_group:
+                            # spread outliers in each group
+                            normal_index = pad_zeros(normal_index, num_normal_per_group)
+                            normal_index = normal_index.view(-1, num_normal_per_group)
+                            outlier_index = outlier_index.view(-1, num_outlier_per_group)
+                            reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)[:act_scale.shape[0]]
+                            # put outlier index to the front is in favor for padding
+
+                            assert (reorder_index == 0).sum() == 1, "Only 1 zero should appear in reorder index"
+                    
+                            # adjust outlier map
+                            final_outlier_mask = torch.cat([
+                                torch.ones(num_groups, num_outlier_per_group),
+                                torch.zeros(num_groups, num_normal_per_group)],
+                                dim=-1).view(-1)[:act_scale.shape[0]]
+                        else:
+                            # directly concat normal and outlier index
+                            reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)
+
+                            # adjust outlier map
+                            final_outlier_mask = torch.cat([
+                                torch.ones(len(outlier_index)),
+                                torch.zeros(len(normal_index))],
+                                dim=-1).view(-1)
+                            
+                        module.act_quantizer.reorder_index = reorder_index
+                        module.act_quantizer.outlier_mask = final_outlier_mask
+
+                    else:
+                        # directly concat normal and outlier index
+                        pass
+
 
                 else:
 

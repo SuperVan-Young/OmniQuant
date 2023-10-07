@@ -18,6 +18,20 @@ def round_ste(x: torch.Tensor):
     """
     return (x.round() - x).detach() + x
 
+def pad_zeros(x: torch.tensor, group_size: int):
+    """
+    Pad zeros to the last dimension of x for grouping
+    """
+    num_groups = math.ceil(x.shape[-1] / group_size)
+    deficiency = num_groups * group_size - x.shape[-1]
+
+    if deficiency == 0:
+        return x
+    
+    pad_zeros_shape = list(x.shape)[:-1] + [deficiency]
+    pad_zeros = torch.zeros(pad_zeros_shape, dtype=x.dtype, device=x.device)
+    x_padded = torch.cat((x,pad_zeros),dim=-1)
+    return x_padded
 
 
 class UniformAffineQuantizer(nn.Module):
