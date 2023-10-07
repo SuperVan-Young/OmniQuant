@@ -66,7 +66,16 @@ def lookup_results(
 
     return sorted_df
 
-MODEL_LIST = ['opt-6.7b', 'opt-13b', 'llama-7b-hf-transformers-4.29', 'llama-13b-hf-transformers-4.29']
+MODEL_LIST = [
+    'opt-6.7b', 
+    'opt-13b', 
+    'opt-30b', 
+    'opt-66b', 
+    'llama-7b-hf-transformers-4.29', 
+    'llama-13b-hf-transformers-4.29'
+    'llama-30b-hf-transformers-4.29'
+    'llama-65b-hf-transformers-4.29'
+]
 
 LOOKUPS = [
     {

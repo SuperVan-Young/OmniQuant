@@ -134,7 +134,7 @@ class UniformAffineQuantizer(nn.Module):
         """
         if self.high_prec_channel_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
-            mask = self.high_prec_channel_mask
+            mask = self.high_prec_channel_mask.to(x.device)
             if len(x.shape) == 3:
                 # linear activation
                 assert len(mask.shape) == 1
