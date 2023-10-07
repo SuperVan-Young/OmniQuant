@@ -184,7 +184,7 @@ CONFIG_DICT = {
     },
 
     # outlier
-    "fc2_W16A4_g128_ol1": {
+    "fc2_W16A4_ol1": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc2": None,
@@ -217,7 +217,7 @@ CONFIG_DICT = {
     },
 
     # outlier
-    "oproj_W16A4_g128_ol1": {
+    "oproj_W16A4_ol1": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,

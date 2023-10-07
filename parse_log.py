@@ -90,9 +90,9 @@ MODEL_LIST = [
     'opt-30b', 
     'opt-66b', 
     'llama-7b-hf-transformers-4.29', 
-    'llama-13b-hf-transformers-4.29'
-    'llama-30b-hf-transformers-4.29'
-    'llama-65b-hf-transformers-4.29'
+    'llama-13b-hf-transformers-4.29',
+    'llama-30b-hf-transformers-4.29',
+    'llama-65b-hf-transformers-4.29',
 ]
 
 LOOKUPS = [
@@ -102,7 +102,7 @@ LOOKUPS = [
         'save_path': 'results/qkvproj.csv'
     },
     {
-        'experiment_list': ['W16A16', 'oproj_W16A4', 'oproj_W16A8'],
+        'experiment_list': ['W16A16', 'oproj_W16A4', 'oproj_W16A8', 'oproj_W16A4_g128', 'oproj_W16A4_ol1', 'oproj_W16A4_g128_ol1'],
         'model_list': MODEL_LIST,
         'save_path': 'results/oproj.csv'
     },
@@ -112,7 +112,7 @@ LOOKUPS = [
         'save_path': 'results/fc1.csv'
     },
     {
-        'experiment_list': ['W16A16', 'fc2_W16A4', 'fc2_W16A8'],
+        'experiment_list': ['W16A16', 'fc2_W16A4', 'fc2_W16A8', 'fc2_W16A4_g128', 'fc2_W16A4_ol1', 'fc2_W16A4_g128_ol1'],
         'model_list': MODEL_LIST,
         'save_path': 'results/fc2.csv'
     },
