@@ -175,20 +175,24 @@ def aowquant(
                     logger.info(f"Outlier ratio enlarged fron {args.outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
                     args.outlier_ratio = new_outlier_ratio
 
-                # select outlier channels
-                # if use reordering, grouping is ignored
-                outlier_index = get_outlier_channel_index(
-                    act_scale,
-                    args.outlier_ratio,
-                    group_size = None if args.act_reorder else args.act_group_size,
-                    outlier_metric = args.outlier_metric,
-                    logger = logger,
-                )
+                # select outlier channels， and generate outlier mask before reordering
+                if args.act_outlier_ratio > 0:
+                    outlier_index = get_outlier_channel_index(
+                        act_scale,
+                        args.outlier_ratio,
+                        # if use reordering, grouping is ignored
+                        group_size = None if args.act_reorder else args.act_group_size,
+                        outlier_metric = args.outlier_metric,
+                        logger = logger,
+                    )
 
-                # this is original outlier mask
-                # if use reordering, this should be adjusted accordingly
-                outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
+                    outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
                 
+                else:
+                    outlier_index = None
+                    outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool)
+
+                # select normal channels (probably reordered)
                 if args.act_reorder:
                     # reorder normal channels
                     normal_index = get_reorder_channel_index(
@@ -198,21 +202,20 @@ def aowquant(
                         logger = logger,
                     )
                 else:
-                    # Notice that in this implementation, we reorder outlier channels to the front
-                    # even if act_reordering is not enabled.
-                    # However, this will not affect the final quantization result.
-                    # If we use grouping, outlier channels remain in the original group;
-                    # Let alone not using grouping.
+                    # just pick out normal channels
                     normal_index = torch.masked_select(torch.arange(act_scale.shape[0]), ~outlier_mask)
 
-                # concat reorder index
-                if args.act_group_size:
-                    num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
+                # concat outlier index if necessary
+                if outlier_index is None:
+                    reorder_index = normal_index
+                    final_outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool)
+                else:
+                    if args.act_group_size:
+                        num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
 
-                    num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
-                    num_normal_per_group = args.act_group_size - num_outlier_per_group
+                        num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
+                        num_normal_per_group = args.act_group_size - num_outlier_per_group
 
-                    if num_outlier_per_group:
                         # spread outliers in each group
                         normal_index = pad_zeros(normal_index, num_normal_per_group)
                         normal_index = normal_index.view(-1, num_normal_per_group)
@@ -227,19 +230,17 @@ def aowquant(
                             torch.ones(num_groups, num_outlier_per_group),
                             torch.zeros(num_groups, num_normal_per_group)],
                             dim=-1).view(-1)[:act_scale.shape[0]]
+                            
                     else:
-                        # No grouping is used
-                        # directly concat normal and outlier index
                         reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)
-
-                        # adjust outlier map
                         final_outlier_mask = torch.cat([
                             torch.ones(len(outlier_index)),
                             torch.zeros(len(normal_index))],
                             dim=-1).view(-1)
-                        
-                    module.act_quantizer.reorder_index = reorder_index
-                    module.act_quantizer.outlier_mask = final_outlier_mask
+                    
+                # We first reorder, then apply outlier mask, after that grouping
+                module.act_quantizer.reorder_index = reorder_index
+                module.act_quantizer.outlier_mask = final_outlier_mask
 
             elif isinstance(module, QuantMatMul):
                 if "qkt_matmul" in name:
