@@ -16,29 +16,47 @@ def collect_results() -> pd.DataFrame:
 
         for model in models:
             logs = os.listdir(os.path.join(output_dir, experiment, model))
-            log = sorted(logs)[-1]
-        
-            with open(os.path.join(output_dir, experiment, model, log), 'r') as f:
-                # iterate through log lines
 
-                result = {
-                    'experiment': experiment, 
-                    'model': model,
-                }
-
-                for line in f:
-                    if "(main.py 148): INFO" in line:
-                        # use regex to extract str after INFO
-                        cur_result = line.split("INFO")[1]
-                        dataset, ppl = cur_result.split(":")
-                        dataset = dataset.strip()
-                        ppl = float(f"{float(ppl):.2f}")
-                        result[dataset] = ppl
-
-            # print(subdir, " ".join([f"{ppl}" for ppl in all_results.values()]))
+            for log in sorted(logs):
+                # use log with latest result
             
-            # save to df
-            df.loc[len(df)] = result
+                with open(os.path.join(output_dir, experiment, model, log), 'r') as f:
+                    # iterate through log lines
+
+                    result = {
+                        'experiment': experiment, 
+                        'model': model,
+                    }
+
+                    for line in f:
+                        cur_result = None
+                        if "(main.py 148): INFO" in line:
+                            # use regex to extract str after INFO
+                            cur_result = line.split("INFO")[1]
+                            
+                        elif "[PPL]" in line:
+                            cur_result = line.split("[PPL]")[1]
+
+                        if cur_result:
+                            dataset, ppl = cur_result.split(":")
+                            dataset = dataset.strip()
+                            ppl = float(f"{float(ppl):.2f}")
+                            result[dataset] = ppl
+
+
+                # print(subdir, " ".join([f"{ppl}" for ppl in all_results.values()]))
+                
+                # find previous result in df
+                # if found, update row
+                # else, create new row
+                mask = (df['experiment'] == experiment) & (df['model'] == model)
+                if len(df.loc[mask]) > 0:
+                    # update non-empty items
+                    for key,value in result.items():
+                        if key in df.columns and value is not None:
+                            df.loc[mask, key] = value
+                else:
+                    df.loc[len(df)] = result
 
     return df
 
@@ -97,6 +115,21 @@ LOOKUPS = [
         'experiment_list': ['W16A16', 'fc2_W16A4', 'fc2_W16A8'],
         'model_list': MODEL_LIST,
         'save_path': 'results/fc2.csv'
+    },
+    {
+        'experiment_list': ['W16A16', 'q_W16A4', 'q_W16A8'],
+        'model_list': MODEL_LIST,
+        'save_path': 'results/q.csv'
+    },
+    {
+        'experiment_list': ['W16A16', 'k_W16A4', 'k_W16A8'],
+        'model_list': MODEL_LIST,
+        'save_path': 'results/k.csv'
+    },
+    {
+        'experiment_list': ['W16A16', 'v_W16A4', 'v_W16A8'],
+        'model_list': MODEL_LIST,
+        'save_path': 'results/v.csv'
     },
 ]
 

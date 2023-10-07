@@ -145,7 +145,7 @@ def evaluate(lm, args, logger):
                     break
 
             ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * lm.seqlen))
-            logger.info(f'{dataset} : {ppl.item()}')
+            logger.info(f'[PPL] {dataset} : {ppl.item()}')
             lm.model.config.use_cache = use_cache
             results[dataset] = ppl.item()
     if args.tasks != "":
