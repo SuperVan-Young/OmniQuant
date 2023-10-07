@@ -168,99 +168,78 @@ def aowquant(
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
                 act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
 
+                # enlarge outlier ratio for alignment in grouping
+                if args.act_group_size:
+                    num_outlier_per_group = math.ceil(args.act_group_size * args.outlier_ratio)
+                    new_outlier_ratio = num_outlier_per_group / args.act_group_size
+                    logger.info(f"Outlier ratio enlarged fron {args.outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
+                    args.outlier_ratio = new_outlier_ratio
+
+                # select outlier channels
+                # if use reordering, grouping is ignored
+                outlier_index = get_outlier_channel_index(
+                    act_scale,
+                    args.outlier_ratio,
+                    group_size = None if args.act_reorder else args.act_group_size,
+                    outlier_metric = args.outlier_metric,
+                    logger = logger,
+                )
+
+                # this is original outlier mask
+                # if use reordering, this should be adjusted accordingly
+                outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
+                
                 if args.act_reorder:
-                    if args.act_group_size:
-                        # enlarge outlier ratio for alignment
-                        num_outlier_per_group = math.ceil(args.act_group_size * args.outlier_ratio)
-                        args.outlier_ratio = num_outlier_per_group / args.act_group_size
-
-                    # select outlier channels
-                    outlier_index = get_outlier_channel_index(
-                        act_scale,
-                        args.outlier_ratio,
-                        group_size = None,  # ignore grouping for outlier selection
-                        outlier_metric = args.outlier_metric,
-                        logger = logger,
-                    )
-
                     # reorder normal channels
-                    outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
                     normal_index = get_reorder_channel_index(
                         act_scale,
                         outlier_mask = outlier_mask,
                         reorder_metric = args.reorder_metric,
                         logger = logger,
                     )
-
-                    # concat reorder index
-                    if args.act_group_size:
-                        num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
-
-                        num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
-                        num_normal_per_group = args.act_group_size - num_outlier_per_group
-
-                        if num_outlier_per_group:
-                            # spread outliers in each group
-                            normal_index = pad_zeros(normal_index, num_normal_per_group)
-                            normal_index = normal_index.view(-1, num_normal_per_group)
-                            outlier_index = outlier_index.view(-1, num_outlier_per_group)
-                            reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)[:act_scale.shape[0]]
-                            # put outlier index to the front is in favor for padding
-
-                            assert (reorder_index == 0).sum() == 1, "Only 1 zero should appear in reorder index"
-                    
-                            # adjust outlier map
-                            final_outlier_mask = torch.cat([
-                                torch.ones(num_groups, num_outlier_per_group),
-                                torch.zeros(num_groups, num_normal_per_group)],
-                                dim=-1).view(-1)[:act_scale.shape[0]]
-                        else:
-                            # directly concat normal and outlier index
-                            reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)
-
-                            # adjust outlier map
-                            final_outlier_mask = torch.cat([
-                                torch.ones(len(outlier_index)),
-                                torch.zeros(len(normal_index))],
-                                dim=-1).view(-1)
-                            
-                        module.act_quantizer.reorder_index = reorder_index
-                        module.act_quantizer.outlier_mask = final_outlier_mask
-
-                    else:
-                        # directly concat normal and outlier index
-                        pass
-
-
                 else:
+                    # Notice that in this implementation, we reorder outlier channels to the front
+                    # even if act_reordering is not enabled.
+                    # However, this will not affect the final quantization result.
+                    # If we use grouping, outlier channels remain in the original group;
+                    # Let alone not using grouping.
+                    normal_index = torch.masked_select(torch.arange(act_scale.shape[0]), ~outlier_mask)
 
-
-                # set high precision channels
-                if args.act_group_size is None:
-                    # select high precision channels from all channels
-                    num_high_prec_channels = int(act_scale.shape[0] * args.high_prec_ratio)
-                    _, high_prec_channels = torch.topk(act_scale, num_high_prec_channels)
-                    high_prec_channel_mask = torch.nn.functional.one_hot(high_prec_channels, num_classes=act_scale.shape[0]).bool()
-                    module.act_quantizer.high_prec_channel_mask = high_prec_channel_mask
-                else:
-                    # select high precision channels from each group
+                # concat reorder index
+                if args.act_group_size:
                     num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
-                    deficiency = num_groups * args.act_group_size - act_scale.shape[0]
-                    high_prec_channel_per_group = max(1, int(args.act_group_size * args.high_prec_ratio))
-                    # logger.info(f"High precision channels per group: {high_prec_channel_per_group}")
 
-                    # pad zero and group act_state
-                    if deficiency == 0:
-                        act_scale_grouped = act_scale.reshape(num_groups, args.act_group_size)
+                    num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
+                    num_normal_per_group = args.act_group_size - num_outlier_per_group
+
+                    if num_outlier_per_group:
+                        # spread outliers in each group
+                        normal_index = pad_zeros(normal_index, num_normal_per_group)
+                        normal_index = normal_index.view(-1, num_normal_per_group)
+                        outlier_index = outlier_index.view(-1, num_outlier_per_group)
+                        reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)[:act_scale.shape[0]]
+                        # put outlier index to the front is in favor for padding
+
+                        assert (reorder_index == 0).sum() == 1, "Only 1 zero should appear in reorder index"
+                
+                        # adjust outlier map
+                        final_outlier_mask = torch.cat([
+                            torch.ones(num_groups, num_outlier_per_group),
+                            torch.zeros(num_groups, num_normal_per_group)],
+                            dim=-1).view(-1)[:act_scale.shape[0]]
                     else:
-                        pad_zeros = torch.zeros([deficiency], dtype=dtype, device=dev)
-                        act_scale_grouped = torch.cat([act_scale, pad_zeros], dim=-1).reshape(num_groups, args.act_group_size)
-                    
-                    # select topk for each group
-                    _, high_prec_channels = torch.topk(act_scale_grouped, high_prec_channel_per_group, dim=-1)
-                    high_prec_channel_mask = torch.nn.functional.one_hot(high_prec_channels, num_classes=args.act_group_size).bool()
-                    module.act_quantizer.high_prec_channel_mask = high_prec_channel_mask.reshape(-1)
+                        # No grouping is used
+                        # directly concat normal and outlier index
+                        reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)
 
+                        # adjust outlier map
+                        final_outlier_mask = torch.cat([
+                            torch.ones(len(outlier_index)),
+                            torch.zeros(len(normal_index))],
+                            dim=-1).view(-1)
+                        
+                    module.act_quantizer.reorder_index = reorder_index
+                    module.act_quantizer.outlier_mask = final_outlier_mask
 
             elif isinstance(module, QuantMatMul):
                 if "qkt_matmul" in name:
