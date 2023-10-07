@@ -74,7 +74,8 @@ class UniformAffineQuantizer(nn.Module):
         self.lwc = lwc
 
         # keep certain input channels of activation at high precision
-        self.high_prec_channel_mask = None
+        self.outlier_mask = None
+        self.reorder_index = None
         
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
@@ -128,6 +129,10 @@ class UniformAffineQuantizer(nn.Module):
 
 
     def forward_normal(self, x: torch.Tensor):
+        """
+        Original forward function for Omniquant
+        We use it for normal value quantization.
+        """
         if self.n_bits >= 16 or not self.enable:
             return x
         if self.metric == "fix0to1":
@@ -144,11 +149,15 @@ class UniformAffineQuantizer(nn.Module):
     
     def forward(self, x: torch.Tensor):
         """
-        Set outliers to 0 to be friendly for quantizing normal values,
+        Add reordering and outlier masking to the forward function
         """
-        if self.high_prec_channel_mask is not None:
+        if self.reorder_index is not None:
+            assert x.device == self.reorder_index.device
+            x = torch.index_select(x, dim=-1, index=self.reorder_index.to(x.device))
+
+        if self.outlier_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
-            mask = self.high_prec_channel_mask.to(x.device)
+            assert x.device == self.outlier_mask.device
             if len(x.shape) == 3:
                 # linear activation
                 assert len(mask.shape) == 1
