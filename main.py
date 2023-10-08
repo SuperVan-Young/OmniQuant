@@ -96,7 +96,7 @@ def evaluate(lm, args, logger):
 
 
     if args.eval_ppl:
-        for dataset in ["wikitext2", "ptb", "c4"]:
+        for dataset in args.eval_ppl_dataset:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
             cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
             if os.path.exists(cache_testloader):
@@ -243,6 +243,7 @@ def main():
     parser.add_argument("--aow-quant-act-q", default=False, action="store_true", help="quantize q activation")
     parser.add_argument("--aow-quant-act-k", default=False, action="store_true", help="quantize k activation")
     parser.add_argument("--aow-quant-act-v", default=False, action="store_true", help="quantize v activation")
+    parser.add_argument("--eval-ppl-dataset", type=str, nargs='+', default=['wikitext2', 'ptb', 'c4'], help="dataset for ppl evaluation")
 
     args = parser.parse_args()
     random.seed(args.seed)
