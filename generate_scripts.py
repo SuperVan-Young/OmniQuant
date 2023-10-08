@@ -3,6 +3,7 @@
 import os
 import math
 import argparse
+from copy import deepcopy
 
 # parse args
 parser = argparse.ArgumentParser()
@@ -178,19 +179,19 @@ CONFIG_DICT = {
     ###############################################
 
     # qkvproj: outlier
-    "qkvproj_W16A4_ol0.01": {
+    "qkvproj_W16A4_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-qkvproj": None,
-        "high-prec-ratio": 0.01,
+        "act-outlier-ratio": 0.01,
     },
 
     # fc1: outlier
-    "fc1_W16A4_ol0.01": {
+    "fc1_W16A4_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc1": None,
-        "high-prec-ratio": 0.01,
+        "act-outlier-ratio": 0.01,
     },
 
     # fc2: reorder + groupwise + outlier
@@ -200,31 +201,44 @@ CONFIG_DICT = {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc2": None,
-        "act_group_size": 128,
+        "act-group-size": 128,
     },
 
     # outlier
-    "fc2_W16A4_ol1": {
+    "fc2_W16A4_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc2": None,
-        "high-prec-ratio": 0.0078125,  # 1 / 128
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
 
     # groupwise + outlier
-    "fc2_W16A4_g128_ol1": {
+    "fc2_W16A4_g128_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc2": None,
-        "act_group_size": 128,
-        "high-prec-ratio": 0.0078125,  # 1 / 128
+        "act-group-size": 128,
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
 
     # reorder + groupwise
-    # TODO: add reorder argument
+    "fc2_W16A4_g128_r": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+        "act-group-size": 128,
+        "act-reorder": None,
+    },
 
     # reorder + groupwise + outlier
-    # TODO: add reorder argument
+    "fc2_W16A4_g128_ol1p128_r": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+        "act-group-size": 128,
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
+        "act-reorder": None,
+    },
 
     # oproj: groupwise + outlier
 
@@ -233,24 +247,24 @@ CONFIG_DICT = {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,
-        "act_group_size": 128,
+        "act-group-size": 128,
     },
 
     # outlier
-    "oproj_W16A4_ol1": {
+    "oproj_W16A4_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,
-        "high-prec-ratio": 0.0078125,  # 1 / 128
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
 
     # groupwise + outlier
-    "oproj_W16A4_g128_ol1": {
+    "oproj_W16A4_g128_ol1p128": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,
-        "act_group_size": 128,
-        "high-prec-ratio": 0.0078125,  # 1 / 128
+        "act-group-size": 128,
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
     
     # q/k/v: (already groupwise) + outlier
@@ -398,11 +412,13 @@ def gen_debugging_script(
 
         used_gpu = 0
 
-        for config_name, config_val in CONFIG_DICT.items():
+        for config_name, configs in CONFIG_DICT.items():
             if 'W16A8' in config_name or 'W16A16' in config_name:
                 continue
             # use few eval dataset for debugging
-            config_val['eval-ppl-dataset'] = 'wikitext2'
+            configs = deepcopy(configs)
+            configs['eval-ppl-dataset'] = 'wikitext2'
+            # configs['debug'] = None
 
             if used_gpu + num_gpus > len(GPU_LIST):
                 used_gpu = 0
@@ -411,7 +427,7 @@ def gen_debugging_script(
             f.write(gen_single_experiment_script(
                 model_name,
                 available_gpus,
-                config_val,
+                configs,
             ))
             # separate logging file
             f.write("sleep 2\n") 
