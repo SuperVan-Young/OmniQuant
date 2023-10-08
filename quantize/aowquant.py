@@ -147,6 +147,9 @@ def aowquant(
 
     # quantize every layer, and set high precision activation channels
     for i in range(len(layers)):
+        if args.debug and i > 0:
+            break
+
         logger.info(f"=== Start quantize layer {i} ===")
         layer = layers[i].to(dev)
         qlayer = DecoderLayer(lm.model.config, layer, args)
@@ -239,8 +242,8 @@ def aowquant(
                             dim=-1).view(-1)
                     
                 # We first reorder, then apply outlier mask, after that grouping
-                module.act_quantizer.reorder_index = reorder_index
-                module.act_quantizer.outlier_mask = final_outlier_mask
+                module.act_quantizer.register_buffer('reorder_index', reorder_index)
+                module.act_quantizer.register_buffer('outlier_mask', final_outlier_mask)
 
             elif isinstance(module, QuantMatMul):
                 if "qkt_matmul" in name:

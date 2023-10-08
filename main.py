@@ -244,6 +244,7 @@ def main():
     parser.add_argument("--aow-quant-act-k", default=False, action="store_true", help="quantize k activation")
     parser.add_argument("--aow-quant-act-v", default=False, action="store_true", help="quantize v activation")
     parser.add_argument("--eval-ppl-dataset", type=str, nargs='+', default=['wikitext2', 'ptb', 'c4'], help="dataset for ppl evaluation")
+    parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 
     args = parser.parse_args()
     random.seed(args.seed)

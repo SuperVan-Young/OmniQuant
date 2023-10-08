@@ -73,10 +73,6 @@ class UniformAffineQuantizer(nn.Module):
         self.deficiency = 0
         self.lwc = lwc
 
-        # keep certain input channels of activation at high precision
-        self.outlier_mask = None
-        self.reorder_index = None
-        
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
             if group_size:
@@ -151,17 +147,17 @@ class UniformAffineQuantizer(nn.Module):
         """
         Add reordering and outlier masking to the forward function
         """
-        if self.reorder_index is not None:
-            assert x.device == self.reorder_index.device
+        if hasattr(self, 'reorder_index') and self.reorder_index is not None:
+            assert x.device == self.reorder_index.device, f"{x.device} vs {self.reorder_index.device}"
             x = torch.index_select(x, dim=-1, index=self.reorder_index.to(x.device))
 
-        if self.outlier_mask is not None:
+        if hasattr(self, 'outlier_mask') and self.outlier_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
-            assert x.device == self.outlier_mask.device
+            assert x.device == self.outlier_mask.device, f"{x.device} vs {self.outlier_mask.device}"
             if len(x.shape) == 3:
                 # linear activation
-                assert len(mask.shape) == 1
-                mask = mask.view(1, 1, -1)
+                assert len(self.outlier_mask.shape) == 1, f"{self.outlier_mask.shape}"
+                mask = self.outlier_mask.view(1, 1, -1)
             elif len(x.shape) == 4:
                 # matmul activation
                 raise NotImplementedError
