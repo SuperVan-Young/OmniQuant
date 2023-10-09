@@ -96,7 +96,7 @@ def evaluate(lm, args, logger):
 
 
     if args.eval_ppl:
-        for dataset in ["wikitext2", "ptb", "c4"]:
+        for dataset in args.eval_ppl_dataset:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
             cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
             if os.path.exists(cache_testloader):
@@ -231,8 +231,11 @@ def main():
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
-    parser.add_argument("--high-prec-ratio", type=float, default=0, help="ratio of high precision activation channels")
-    parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
+    parser.add_argument("--act-group-size", type=int, default=None, help="group size of activation quantization")
+    parser.add_argument("--act-outlier-ratio", type=float, default=0, help="ratio of outlier activation channels")
+    parser.add_argument("--act-reorder", default=False, action="store_true", help="reorder activation quantization")
+    parser.add_argument("--outlier-metric", type=str, default='scale', choices=['scale', 'std'], help="metric for choosing outlier activation channels")
+    parser.add_argument("--reorder-metric", type=str, default='scale', choices=['scale', 'std'], help="metric for reorder activation quantization")
     parser.add_argument("--aow-quant-act-qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
     parser.add_argument("--aow-quant-act-oproj", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
@@ -240,6 +243,8 @@ def main():
     parser.add_argument("--aow-quant-act-q", default=False, action="store_true", help="quantize q activation")
     parser.add_argument("--aow-quant-act-k", default=False, action="store_true", help="quantize k activation")
     parser.add_argument("--aow-quant-act-v", default=False, action="store_true", help="quantize v activation")
+    parser.add_argument("--eval-ppl-dataset", type=str, nargs='+', default=['wikitext2', 'ptb', 'c4'], help="dataset for ppl evaluation")
+    parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 
     args = parser.parse_args()
     random.seed(args.seed)

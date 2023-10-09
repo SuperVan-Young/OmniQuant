@@ -19,7 +19,6 @@ def round_ste(x: torch.Tensor):
     return (x.round() - x).detach() + x
 
 
-
 class UniformAffineQuantizer(nn.Module):
     def __init__(
         self,
@@ -59,9 +58,6 @@ class UniformAffineQuantizer(nn.Module):
         self.deficiency = 0
         self.lwc = lwc
 
-        # keep certain input channels of activation at high precision
-        self.high_prec_channel_mask = None
-        
         init_value = 4.             # inti value of learnable weight clipping
         if lwc:
             if group_size:
@@ -114,6 +110,10 @@ class UniformAffineQuantizer(nn.Module):
 
 
     def forward_normal(self, x: torch.Tensor):
+        """
+        Original forward function for Omniquant
+        We use it for normal value quantization.
+        """
         if self.n_bits >= 16 or not self.enable:
             return x
         if self.metric == "fix0to1":
@@ -130,15 +130,20 @@ class UniformAffineQuantizer(nn.Module):
     
     def forward(self, x: torch.Tensor):
         """
-        Set outliers to 0 to be friendly for quantizing normal values,
+        Add reordering and outlier masking to the forward function
         """
-        if self.high_prec_channel_mask is not None:
+        # reorder input tensor
+        if hasattr(self, 'reorder_index') and self.reorder_index is not None:
+            assert x.device == self.reorder_index.device, f"{x.device} vs {self.reorder_index.device}"
+            x = torch.index_select(x, dim=-1, index=self.reorder_index)
+
+        if hasattr(self, 'outlier_mask') and self.outlier_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
-            mask = self.high_prec_channel_mask.to(x.device)
+            assert x.device == self.outlier_mask.device, f"{x.device} vs {self.outlier_mask.device}"
             if len(x.shape) == 3:
                 # linear activation
-                assert len(mask.shape) == 1
-                mask = mask.view(1, 1, -1)
+                assert len(self.outlier_mask.shape) == 1, f"{self.outlier_mask.shape}"
+                mask = self.outlier_mask.view(1, 1, -1)
             elif len(x.shape) == 4:
                 # matmul activation
                 raise NotImplementedError
@@ -148,20 +153,18 @@ class UniformAffineQuantizer(nn.Module):
                 mask = mask.view(bsz, seq_len, num_head, head_dim).transpose(1, 2)
             else:
                 raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {x.shape}")
-            x_normal = torch.where(mask, torch.zeros_like(x), x)
-            x_outlier = torch.where(mask, x, torch.zeros_like(x))
+            x_normal = x * (~mask)
+            x_outlier = x * mask
             x_dequant = self.forward_normal(x_normal) + x_outlier
         else:
             x_dequant = self.forward_normal(x)
 
+        # reorder the tensor back!
+        if hasattr(self, 'reorder_index') and self.reorder_index is not None:
+            x_dequant = torch.index_select(x_dequant, dim=-1, index=self.reorder_index_inv)
+
         has_nan = torch.isnan(x_dequant).any()
         if has_nan:
-            # print("NaN detected in quantized tensor.")
-            # print(self.scale.shape)
-            # print(torch.min(self.scale))
-            # print(torch.max(self.scale))
-            # print(self.round_zero_point.shape)
-            # print(torch.isnan(self.round_zero_point).any())
             raise RuntimeError("NaN detected in quantized tensor.")
         return x_dequant
 
