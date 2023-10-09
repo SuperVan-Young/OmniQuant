@@ -18,21 +18,6 @@ def round_ste(x: torch.Tensor):
     """
     return (x.round() - x).detach() + x
 
-def pad_zeros(x: torch.tensor, group_size: int):
-    """
-    Pad zeros to the last dimension of x for grouping
-    """
-    num_groups = math.ceil(x.shape[-1] / group_size)
-    deficiency = num_groups * group_size - x.shape[-1]
-
-    if deficiency == 0:
-        return x
-    
-    pad_zeros_shape = list(x.shape)[:-1] + [deficiency]
-    pad_zeros = torch.zeros(pad_zeros_shape, dtype=x.dtype, device=x.device)
-    x_padded = torch.cat((x,pad_zeros),dim=-1)
-    return x_padded
-
 
 class UniformAffineQuantizer(nn.Module):
     def __init__(
@@ -149,7 +134,7 @@ class UniformAffineQuantizer(nn.Module):
         """
         if hasattr(self, 'reorder_index') and self.reorder_index is not None:
             assert x.device == self.reorder_index.device, f"{x.device} vs {self.reorder_index.device}"
-            x = torch.index_select(x, dim=-1, index=self.reorder_index.to(x.device))
+            x = torch.index_select(x, dim=-1, index=self.reorder_index)
 
         if hasattr(self, 'outlier_mask') and self.outlier_mask is not None:
             assert self.metric != 'fix0to1', "Not support fix0to1 with high_prec_channels"
@@ -157,7 +142,7 @@ class UniformAffineQuantizer(nn.Module):
             if len(x.shape) == 3:
                 # linear activation
                 assert len(self.outlier_mask.shape) == 1, f"{self.outlier_mask.shape}"
-                mask = self.outlier_mask.view(1, 1, -1)
+                mask = self.outlier_mask.view(1, 1, -1).bool()
             elif len(x.shape) == 4:
                 # matmul activation
                 raise NotImplementedError
@@ -167,8 +152,8 @@ class UniformAffineQuantizer(nn.Module):
                 mask = mask.view(bsz, seq_len, num_head, head_dim).transpose(1, 2)
             else:
                 raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {x.shape}")
-            x_normal = torch.where(mask, torch.zeros_like(x), x)
-            x_outlier = torch.where(mask, x, torch.zeros_like(x))
+            x_normal = x * (~mask)
+            x_outlier = x * mask
             x_dequant = self.forward_normal(x_normal) + x_outlier
         else:
             x_dequant = self.forward_normal(x)

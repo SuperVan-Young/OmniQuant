@@ -8,7 +8,6 @@ from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
 from quantize.int_matmul import QuantMatMul
 from quantize.omniquant import get_named_linears
-from quantize.quantizer import pad_zeros
 from contextlib import nullcontext
 import copy
 import math
@@ -83,7 +82,7 @@ def get_reorder_channel_index(
                                    act_scale)
     _, reorder_indices = torch.sort(normal_act_scale, descending=True)
 
-    num_outlier_channels = outlier_mask.sum()
+    num_outlier_channels = outlier_mask.sum().item()
     if num_outlier_channels:
         reorder_indices = reorder_indices[:-num_outlier_channels]
 
@@ -199,7 +198,7 @@ def aowquant(
                         logger = logger,
                     )
 
-                    outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).bool()
+                    outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).sum(dim=0).bool()
                 
                 else:
                     outlier_index = None
@@ -228,17 +227,25 @@ def aowquant(
                     if args.act_group_size:
                         num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
 
-                        num_outlier_per_group = int(args.act_group_size * args.act_outlier_ratio)
+                        num_outlier_per_group = math.ceil(args.act_group_size * args.act_outlier_ratio)
                         num_normal_per_group = args.act_group_size - num_outlier_per_group
 
                         # spread outliers in each group
-                        normal_index = pad_zeros(normal_index, num_normal_per_group)
+                        normal_deficiency = num_groups * num_normal_per_group - normal_index.shape[0]
+                        assert normal_deficiency < num_normal_per_group
+                        if normal_deficiency:
+                            normal_index = torch.cat([normal_index, 
+                                                      torch.ones(normal_deficiency, dtype=normal_index.dtype, device=normal_index.device) * -1], 
+                                                      dim=-1)
                         normal_index = normal_index.view(-1, num_normal_per_group)
                         outlier_index = outlier_index.view(-1, num_outlier_per_group)
+                        assert normal_index.shape[0] == num_groups
+                        assert outlier_index.shape[0] == num_groups
+
                         reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)[:act_scale.shape[0]]
                         # put outlier index to the front is in favor for padding
 
-                        assert (reorder_index == 0).sum() == 1, "Only 1 zero should appear in reorder index"
+                        assert (reorder_index == -1).sum() == 0
                 
                         # adjust outlier map
                         final_outlier_mask = torch.cat([
