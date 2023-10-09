@@ -144,6 +144,20 @@ def evaluate(lm, args, logger):
                 if i == args.limit:
                     break
 
+                # # debug what the model outputs
+                # predicted_tokens = torch.argmax(shift_logits, dim=-1)
+                # predicted_tokens = predicted_tokens.cpu().numpy().tolist()
+                # predicted_tokens = [lm.tokenizer.decode(token) for token in predicted_tokens]
+                # print(" ".join(predicted_tokens))
+                # print()
+
+                # # debug original tokens
+                # original_tokens = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)]
+                # original_tokens = original_tokens.cpu().numpy().tolist()
+                # original_tokens = [lm.tokenizer.decode(token) for token in original_tokens]
+                # print(" ".join(original_tokens))
+                # print()
+
             ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * lm.seqlen))
             logger.info(f'[PPL] {dataset} : {ppl.item()}')
             lm.model.config.use_cache = use_cache
