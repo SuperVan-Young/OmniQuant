@@ -19,7 +19,7 @@ import gc
 
 def get_outlier_channel_index(
     act_scale,
-    outlier_ratio,
+    act_outlier_ratio,
     group_size = None,
     outlier_metric = 'scale',
     logger = None,
@@ -27,20 +27,19 @@ def get_outlier_channel_index(
 ) -> torch.Tensor:
     """
     Select outlier channels from activation scale.
-    Returns: 1d tensor of outlier channel indices if group_size is None, 
-             or 2d tensor of outlier channel indices given group size
+    Returns: 1d tensor of outlier channel indices
     """
     assert outlier_metric == 'scale', "Only support scale now"
-    assert outlier_ratio > 0 and outlier_ratio < 1, "Outlier ratio should be in (0, 1)"
+    assert act_outlier_ratio > 0 and act_outlier_ratio < 1, "Outlier ratio should be in (0, 1)"
     assert len(act_scale.shape) == 1, "Only support 1D tensor now"
 
     if group_size is None:
-        num_outlier_channels = int(act_scale.shape[0] * outlier_ratio)
+        num_outlier_channels = int(act_scale.shape[0] * act_outlier_ratio)
         _, outlier_channels = torch.topk(act_scale, num_outlier_channels)
     else:
         num_groups = math.ceil(act_scale.shape[0] / group_size)
         deficiency = num_groups * group_size - act_scale.shape[0]
-        num_outlier_channels_per_group = math.ceil(group_size * outlier_ratio)
+        num_outlier_channels_per_group = math.ceil(group_size * act_outlier_ratio)
         logger.info(f"Outlier channels per group: {num_outlier_channels_per_group}")
 
         # pad zero and group act_state
@@ -52,7 +51,14 @@ def get_outlier_channel_index(
         
         # select topk for each group
         _, outlier_channels = torch.topk(act_scale_grouped, num_outlier_channels_per_group, dim=-1)
+
+        # flatten outlier channels
+        onehot = torch.nn.functional.one_hot(outlier_channels, num_classes=group_size).view(-1).bool()
+        if deficiency:
+            onehot = onehot[:-deficiency]
+        outlier_channels = torch.masked_select(torch.arange(act_scale.shape[0], device=act_scale.device), onehot)
     
+    assert len(outlier_channels.shape) == 1, "Outlier channels should be 1D tensor"
     return outlier_channels
 
 
@@ -69,14 +75,17 @@ def get_reorder_channel_index(
     assert reorder_metric == 'scale', "Only support scale now"
     assert len(act_scale.shape) == 1, "Only support 1D tensor now"
     if outlier_mask is None:
-        outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool)
+        outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool, device=act_scale.device)
         logger.info("No outlier mask provided, select all channels as normal channels")
 
-    normal_act_scale = torch.where(outlier_mask, torch.zeros_like(act_scale), act_scale)
+    normal_act_scale = torch.where(outlier_mask, 
+                                   torch.zeros_like(act_scale, dtype=act_scale.dtype, device=act_scale.device),
+                                   act_scale)
     _, reorder_indices = torch.sort(normal_act_scale, descending=True)
 
     num_outlier_channels = outlier_mask.sum()
-    reorder_indices = reorder_indices[:-num_outlier_channels]
+    if num_outlier_channels:
+        reorder_indices = reorder_indices[:-num_outlier_channels]
 
     return reorder_indices
 
@@ -173,16 +182,17 @@ def aowquant(
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
-                    num_outlier_per_group = math.ceil(args.act_group_size * args.outlier_ratio)
+                    num_outlier_per_group = math.ceil(args.act_group_size * args.act_outlier_ratio)
                     new_outlier_ratio = num_outlier_per_group / args.act_group_size
-                    logger.info(f"Outlier ratio enlarged fron {args.outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
-                    args.outlier_ratio = new_outlier_ratio
+                    if new_outlier_ratio > args.act_outlier_ratio:
+                        logger.info(f"Outlier ratio enlarged from {args.act_outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
+                        args.act_outlier_ratio = new_outlier_ratio
 
                 # select outlier channels， and generate outlier mask before reordering
                 if args.act_outlier_ratio > 0:
                     outlier_index = get_outlier_channel_index(
                         act_scale,
-                        args.outlier_ratio,
+                        args.act_outlier_ratio,
                         # if use reordering, grouping is ignored
                         group_size = None if args.act_reorder else args.act_group_size,
                         outlier_metric = args.outlier_metric,
@@ -195,6 +205,8 @@ def aowquant(
                     outlier_index = None
                     outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool)
 
+                outlier_mask = outlier_mask.to(device=dev)
+
                 # select normal channels (probably reordered)
                 if args.act_reorder:
                     # reorder normal channels
@@ -206,7 +218,7 @@ def aowquant(
                     )
                 else:
                     # just pick out normal channels
-                    normal_index = torch.masked_select(torch.arange(act_scale.shape[0]), ~outlier_mask)
+                    normal_index = torch.masked_select(torch.arange(act_scale.shape[0], device=act_scale.device), ~outlier_mask)
 
                 # concat outlier index if necessary
                 if outlier_index is None:
@@ -216,7 +228,7 @@ def aowquant(
                     if args.act_group_size:
                         num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
 
-                        num_outlier_per_group = int(args.act_group_size * args.outlier_ratio)
+                        num_outlier_per_group = int(args.act_group_size * args.act_outlier_ratio)
                         num_normal_per_group = args.act_group_size - num_outlier_per_group
 
                         # spread outliers in each group
