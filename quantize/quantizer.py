@@ -132,6 +132,7 @@ class UniformAffineQuantizer(nn.Module):
         """
         Add reordering and outlier masking to the forward function
         """
+        # reorder input tensor
         if hasattr(self, 'reorder_index') and self.reorder_index is not None:
             assert x.device == self.reorder_index.device, f"{x.device} vs {self.reorder_index.device}"
             x = torch.index_select(x, dim=-1, index=self.reorder_index)
@@ -142,7 +143,7 @@ class UniformAffineQuantizer(nn.Module):
             if len(x.shape) == 3:
                 # linear activation
                 assert len(self.outlier_mask.shape) == 1, f"{self.outlier_mask.shape}"
-                mask = self.outlier_mask.view(1, 1, -1).bool()
+                mask = self.outlier_mask.view(1, 1, -1)
             elif len(x.shape) == 4:
                 # matmul activation
                 raise NotImplementedError
@@ -158,14 +159,12 @@ class UniformAffineQuantizer(nn.Module):
         else:
             x_dequant = self.forward_normal(x)
 
+        # reorder the tensor back!
+        if hasattr(self, 'reorder_index') and self.reorder_index is not None:
+            x_dequant = torch.index_select(x_dequant, dim=-1, index=self.reorder_index_inv)
+
         has_nan = torch.isnan(x_dequant).any()
         if has_nan:
-            # print("NaN detected in quantized tensor.")
-            # print(self.scale.shape)
-            # print(torch.min(self.scale))
-            # print(torch.max(self.scale))
-            # print(self.round_zero_point.shape)
-            # print(torch.isnan(self.round_zero_point).any())
             raise RuntimeError("NaN detected in quantized tensor.")
         return x_dequant
 

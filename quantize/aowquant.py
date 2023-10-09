@@ -33,7 +33,7 @@ def get_outlier_channel_index(
     assert len(act_scale.shape) == 1, "Only support 1D tensor now"
 
     if group_size is None:
-        num_outlier_channels = int(act_scale.shape[0] * act_outlier_ratio)
+        num_outlier_channels = math.ceil(act_scale.shape[0] * act_outlier_ratio)
         _, outlier_channels = torch.topk(act_scale, num_outlier_channels)
     else:
         num_groups = math.ceil(act_scale.shape[0] / group_size)
@@ -249,19 +249,45 @@ def aowquant(
                 
                         # adjust outlier map
                         final_outlier_mask = torch.cat([
-                            torch.ones(num_groups, num_outlier_per_group),
-                            torch.zeros(num_groups, num_normal_per_group)],
+                            torch.ones(num_groups, num_outlier_per_group, dtype=torch.bool),
+                            torch.zeros(num_groups, num_normal_per_group, dtype=torch.bool)],
                             dim=-1).view(-1)[:act_scale.shape[0]]
                             
                     else:
                         reorder_index = torch.cat([outlier_index, normal_index], dim=-1).view(-1)
                         final_outlier_mask = torch.cat([
-                            torch.ones(len(outlier_index)),
-                            torch.zeros(len(normal_index))],
+                            torch.ones(len(outlier_index), dtype=torch.bool),
+                            torch.zeros(len(normal_index), dtype=torch.bool)],
                             dim=-1).view(-1)
+                        
+                final_outlier_mask = final_outlier_mask.to(device=dev)
+
+                # check reorder index is a valid permuatation
+                check_reorder_index = torch.nn.functional.one_hot(reorder_index, num_classes=act_scale.shape[0]).int().sum(dim=0)
+                assert torch.all(check_reorder_index == 1)
+
+                # generate inverted reorder index
+                _, reorder_index_inv = torch.sort(reorder_index, descending=False)
+
+                # check whether normal channels and outlier channels are separated
+                if args.act_outlier_ratio > 0:
+                    act_scale_reorder = torch.index_select(act_scale, dim=-1, index=reorder_index)
+                    act_scale_outlier = act_scale_reorder * final_outlier_mask
+                    act_scale_normal = act_scale_reorder * (~final_outlier_mask)
+                    act_scale_outlier = act_scale_outlier[act_scale_outlier > 0]
+                    act_scale_normal = act_scale_normal[act_scale_normal > 0]
+
+                    max_act_scale_outlier = torch.max(act_scale_outlier).item()
+                    max_act_scale_normal = torch.max(act_scale_normal).item()
+                    logger.info(f"outlier max vs. normal max: {max_act_scale_outlier} vs. {max_act_scale_normal}")
                     
+                    mean_act_scale_outlier = torch.mean(act_scale_outlier).item()
+                    mean_act_scale_normal = torch.mean(act_scale_normal).item()
+                    logger.info(f"outlier mean vs. normal mean: {mean_act_scale_outlier} vs. {mean_act_scale_normal}")
+
                 # We first reorder, then apply outlier mask, after that grouping
                 module.act_quantizer.register_buffer('reorder_index', reorder_index)
+                module.act_quantizer.register_buffer('reorder_index_inv', reorder_index_inv)
                 module.act_quantizer.register_buffer('outlier_mask', final_outlier_mask)
 
             elif isinstance(module, QuantMatMul):
