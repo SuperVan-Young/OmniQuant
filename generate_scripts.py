@@ -183,7 +183,7 @@ CONFIG_DICT = {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-qkvproj": None,
-        "act-outlier-ratio": 0.01,
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
 
     # fc1: outlier
@@ -191,7 +191,7 @@ CONFIG_DICT = {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc1": None,
-        "act-outlier-ratio": 0.01,
+        "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
 
     # fc2: reorder + groupwise + outlier
@@ -408,13 +408,16 @@ def gen_debugging_script(
         f.write("# This script is exptected to be run on server %s.\n\n" % EXPERIMENT_SERVER)
 
         f.write(f"MODEL_DIR={MODEL_DIR}\n")
-        f.write(f"OUTPUT_DIR=./output/debugging\n")
+        f.write(f"OUTPUT_DIR=./output/debugging\n\n")
 
         used_gpu = 0
 
         for config_name, configs in CONFIG_DICT.items():
             if 'W16A8' in config_name or 'W16A16' in config_name:
                 continue
+            if len(config_name.split('_')) <= 2:
+                continue  # baseline experiments
+
             # use few eval dataset for debugging
             configs = deepcopy(configs)
             configs['eval-ppl-dataset'] = 'wikitext2'
@@ -424,13 +427,14 @@ def gen_debugging_script(
                 used_gpu = 0
                 f.write("wait\n\n")
             available_gpus = ",".join(GPU_LIST[used_gpu:used_gpu+num_gpus])
+            f.write(f"# {config_name}")
             f.write(gen_single_experiment_script(
                 model_name,
                 available_gpus,
                 configs,
             ))
             # separate logging file
-            f.write("sleep 2\n") 
+            f.write("sleep 2\n\n") 
             # prevent OOM by manually wait
             used_gpu += num_gpus
 
