@@ -98,7 +98,7 @@ def evaluate(lm, args, logger):
     if args.eval_ppl:
         for dataset in args.eval_ppl_dataset:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
-            cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
+            cache_testloader = f'{args.cache_dir}/testloader_{args.net}_{dataset}_all.cache'
             if os.path.exists(cache_testloader):
                 testloader = torch.load(cache_testloader)
                 logger.info(f"load calibration from {cache_testloader}")
