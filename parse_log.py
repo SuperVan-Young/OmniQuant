@@ -89,10 +89,10 @@ MODEL_LIST = [
     'opt-13b', 
     'opt-30b', 
     'opt-66b', 
-    'llama-7b-hf-transformers-4.29', 
-    'llama-13b-hf-transformers-4.29',
-    'llama-30b-hf-transformers-4.29',
-    'llama-65b-hf-transformers-4.29',
+    'llama-7b-meta', 
+    'llama-13b-meta',
+    'llama-30b-meta',
+    'llama-65b-meta',
 ]
 
 LOOKUPS = [

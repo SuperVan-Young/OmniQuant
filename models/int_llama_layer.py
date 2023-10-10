@@ -108,6 +108,7 @@ class QuantLlamaAttention(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
+        padding_mask: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
@@ -218,6 +219,7 @@ class QuantLlamaDecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        padding_mask: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
         Args:
