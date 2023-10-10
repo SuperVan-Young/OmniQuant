@@ -8,7 +8,7 @@ from copy import deepcopy
 # parse args
 parser = argparse.ArgumentParser()
 parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], help="server type")
-parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all'], type=str, help="model list")
+parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], type=str, help="model list")
 
 args = parser.parse_args()
 
@@ -31,25 +31,24 @@ else:
 
 DEMO_MODEL_LIST = [
     # Now that we don't modify TransformerLayer, we can use one type of CasualLM
-    # "llama-7b-hf-transformers-4.29",
     "opt-6.7b",
 ]
 
 SMALL_MODEL_LIST = [
-    "llama-7b-hf-transformers-4.29",
+    "llama-7b-meta",
     "opt-6.7b",
-    "llama-13b-hf-transformers-4.29",
+    "llama-13b-meta",
     "opt-13b",
 ]
 
 MEDIAM_MODEL_LIST = [
     "opt-30b",
-    "llama-30b-hf-transformers-4.29",
+    "llama-30b-meta",
 ]
 
 LARGE_MODEL_LIST = [
     "opt-66b",
-    "llama-65b-hf-transformers-4.29",
+    "llama-65b-meta",
 ]
 
 ALL_MODEL_LIST = [
@@ -57,13 +56,27 @@ ALL_MODEL_LIST = [
     # "opt-1.3b",
     # "opt-2.7b",
     "opt-6.7b",
-    "llama-7b-hf-transformers-4.29",
+    "llama-7b-meta",
     "opt-13b",
-    "llama-13b-hf-transformers-4.29",
+    "llama-13b-meta",
     "opt-30b",
-    "llama-30b-hf-transformers-4.29",
+    "llama-30b-meta",
     "opt-66b",
-    "llama-65b-hf-transformers-4.29",
+    "llama-65b-meta",
+]
+
+OPT_ALL_MODEL_LIST = [
+    "opt-6.7b",
+    "opt-13b",
+    "opt-30b",
+    "opt-66b",
+]
+
+LLAMA_ALL_MODEL_LIST = [
+    "llama-7b-meta",
+    "llama-13b-meta",
+    "llama-30b-meta",
+    "llama-65b-meta",
 ]
 
 if args.model_list == 'demo':
@@ -76,6 +89,10 @@ elif args.model_list == 'large':
     MODEL_LIST = LARGE_MODEL_LIST
 elif args.model_list == 'all':
     MODEL_LIST = ALL_MODEL_LIST
+elif args.model_list == 'opt_all':
+    MODEL_LIST = OPT_ALL_MODEL_LIST
+elif args.model_list == 'llama_all':
+    MODEL_LIST = LLAMA_ALL_MODEL_LIST
 else:
     raise NotImplementedError
 
