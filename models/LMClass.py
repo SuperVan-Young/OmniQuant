@@ -7,6 +7,7 @@ from torch import nn
 import torch
 from tqdm import tqdm
 import pdb
+from datautils import get_tokenizer
 
 
 class LMClass(BaseLM):
@@ -21,7 +22,8 @@ class LMClass(BaseLM):
 
         self.model_config = args.model
         config = AutoConfig.from_pretrained(args.model)
-        self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
+        # self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
+        self.tokenizer = get_tokenizer(args.model)
         self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
         # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16)
         self.seqlen = self.model.config.max_position_embeddings

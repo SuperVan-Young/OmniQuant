@@ -19,7 +19,11 @@ def get_tokenizer(model_path):
     Copied from SpQR/datautils.py to fix llama decoder
     """
     if "llama" in model_path.lower():
-        tokenizer = LlamaTokenizer.from_pretrained(model_path, use_fast=False)
+        if 'hf-transformers-4.29' in model_path.lower():
+            print(f"Using official llama tokenizer")
+            tokenizer = LlamaTokenizer.from_pretrained('/datasets/llama', use_fast=True)
+        else:
+            tokenizer = LlamaTokenizer.from_pretrained(model_path, use_fast=False)
 
         # fix for transformer 4.28.0.dev0 compatibility
         if tokenizer.bos_token_id != 1 or tokenizer.eos_token_id != 2:
