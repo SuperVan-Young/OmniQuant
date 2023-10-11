@@ -17,7 +17,7 @@ def collect_results() -> pd.DataFrame:
         for model in models:
             logs = os.listdir(os.path.join(output_dir, experiment, model))
 
-            for log in sorted(logs):
+            for log in sorted(logs, reverse=True):
                 # use log with latest result
             
                 with open(os.path.join(output_dir, experiment, model, log), 'r') as f:
