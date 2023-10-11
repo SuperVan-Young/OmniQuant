@@ -298,7 +298,6 @@ def aowquant(
                     module.use_x2_quant = getattr(args, "aow_quant_act_v")
 
         qlayer.register_scales_and_zeros()
-        qlayer.half()
         layers[i] = qlayer.to("cpu")
         del layer
         torch.cuda.empty_cache()

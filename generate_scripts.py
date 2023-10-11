@@ -315,6 +315,9 @@ CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
             scripts += f"--{config_name} {' '.join([str(val) for val in config_val])} \\\n"
         else:
             scripts += f"--{config_name} {config_val} \\\n"
+    # support llama model
+    if "llama" in model_name:
+        scripts += "--deactive_amp \\\n"
     scripts += "&\n"
     return scripts
 
@@ -332,7 +335,7 @@ def allocate_gpu(model_list) -> dict:
             raise NotImplementedError
         
     def _allocate_gpu(model_name):
-        weight_size_in_GB = parse_model_size(model_name) * 2.4  # spare some room for runtime memory
+        weight_size_in_GB = parse_model_size(model_name) * 2.5  # spare some room for runtime memory
         num_gpu = math.ceil(weight_size_in_GB / GPU_MEMORY)
         assert num_gpu <= len(GPU_LIST), f"Model {model_name} requires {num_gpu} GPUs, but only {len(GPU_LIST)} GPUs are available."
         return num_gpu
