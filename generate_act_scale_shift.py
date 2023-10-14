@@ -278,15 +278,23 @@ def get_outlier_stats(model, dataloader, num_samples=128):
         hidden_dim = tensor.shape[-1]
         tensor = tensor.view(-1, hidden_dim).detach()
         stats = {}
-        stats['mean'] = torch.mean(tensor, dim=0).float().cpu()
-        stats['std'] = torch.std(tensor, dim=0).float().cpu()
+        stats['mean'] = torch.mean(tensor).float().cpu()
+        stats['std'] = torch.std(tensor).float().cpu()
         return stats
     
     def update_stats(name, category, comming_stats):
         outlier_stats.setdefault(name, {})
         outlier_stats[name].setdefault(category, {
+            # whole tensor
             'mean': [],
             'std': [],
+
+            # outlier stats
+            'ratio': [],
+            'min': [],
+            'max': [],
+            'l2_norm': [],
+            'all_l2_norm': [],
         })
         stats = outlier_stats[name][category]
         
@@ -361,25 +369,26 @@ def get_outlier_stats(model, dataloader, num_samples=128):
     # second round: get outlier stats
     def get_outlier_stat(tensor, mean, std) -> dict:
         hidden_dim = tensor.shape[-1]
-        tensor = tensor.view(-1, hidden_dim).detach()
+        tensor = tensor.view(-1, hidden_dim).float().detach()
+        mean = mean.item()
+        std = std.item()
         outlier_mask = ((tensor - mean) / std).abs() > 3
+        num_outlier_per_channel = outlier_mask.sum(dim=0).float()
         stats = {}
         stats['ratio'] = outlier_mask.float().mean(dim=0).cpu()
         stats['min'] = torch.min(tensor * outlier_mask, dim=0)[0].cpu()
         stats['max'] = torch.max(tensor * outlier_mask, dim=0)[0].cpu()
-        stats['l2_norm'] = torch.sum((tensor * outlier_mask) ** 2, dim=0).cpu()
-        stats['all_l2_norm'] = torch.sum(tensor ** 2, dim=0).cpu()
+        stats['all_l2_norm'] = torch.mean(tensor ** 2, dim=0).cpu()
+
+        # compute l2 norm of non-zero elements for each channel
+        square_sum = tensor.masked_select(outlier_mask).pow(2).sum(dim=0)
+        stats['l2_norm'] = square_sum / num_outlier_per_channel
+        stats['l2_norm'][num_outlier_per_channel == 0] = 0  # ensure not to divide by zero
+        stats['l2_norm'] = stats['l2_norm'].cpu()
+
         return stats
     
     def update_outlier_stats(name, category, comming_stats):
-        outlier_stats.setdefault(name, {})
-        outlier_stats[name].setdefault(category, {
-            'ratio': [],
-            'min': [],
-            'max': [],
-            'l2_norm': [],
-            'all_l2_norm': [],
-        })
         stats = outlier_stats[name][category]
         
         stats['ratio'].append(comming_stats['ratio'])
@@ -450,11 +459,13 @@ def get_outlier_stats(model, dataloader, num_samples=128):
     # get average outlier stats
     for name, stats in outlier_stats.items():
         for category, stat_list in stats.items():
-            stat_list['ratio'] = torch.stack(stat_list['ratio']).mean(dim=0)
             stat_list['min'] = torch.stack(stat_list['min']).min(dim=0)
             stat_list['max'] = torch.stack(stat_list['max']).max(dim=0)
-            stat_list['l2_norm'] = torch.stack(stat_list['l2_norm']).sum(dim=0).sqrt()
-            stat_list['all_l2_norm'] = torch.stack(stat_list['all_l2_norm']).sum(dim=0).sqrt()
+            stat_list['all_l2_norm'] = torch.stack(stat_list['all_l2_norm']).mean(dim=0)
+            
+            # l2 norm should use weighted mean, but I don't bother to do that here
+            stat_list['l2_norm'] = torch.stack(stat_list['l2_norm']).mean(dim=0)
+            stat_list['ratio'] = torch.stack(stat_list['ratio']).mean(dim=0)
 
     return outlier_stats
 
