@@ -141,7 +141,7 @@ def get_act_stats(model, dataloader, num_samples=128):
     # category: input, abs_input, output, abs_output
     # stat list: min, max, mean, std
 
-    def get_tensor_stat(tensor) -> tuple:
+    def get_tensor_stat(tensor) -> dict:
         hidden_dim = tensor.shape[-1]
         tensor = tensor.view(-1, hidden_dim).detach()
         stats = {}
@@ -257,6 +257,207 @@ def get_act_stats(model, dataloader, num_samples=128):
     return act_stats
 
 
+def get_outlier_stats(model, dataloader, num_samples=128):
+    """
+    Profile outlier stats for all layers in the model.
+    First collect tensor-level mean and std, use 3 sigma rule to identify outliers
+    Then collect channel-level outlier status, including:
+    - outlier ratio
+    - outlier min / max
+    - outlier L2 norm
+    - channel L2 norm (just like Wanda's metric for pruning)
+    """
+
+    model.eval()
+    device = next(model.parameters()).device
+    outlier_stats = {}  # layer name -> category -> stat list
+    # category: input, output
+
+    # first round: get tensor mean and std
+    def get_tensor_stat(tensor) -> dict:
+        hidden_dim = tensor.shape[-1]
+        tensor = tensor.view(-1, hidden_dim).detach()
+        stats = {}
+        stats['mean'] = torch.mean(tensor, dim=0).float().cpu()
+        stats['std'] = torch.std(tensor, dim=0).float().cpu()
+        return stats
+    
+    def update_stats(name, category, comming_stats):
+        outlier_stats.setdefault(name, {})
+        outlier_stats[name].setdefault(category, {
+            'mean': [],
+            'std': [],
+        })
+        stats = outlier_stats[name][category]
+        
+        stats['mean'].append(comming_stats['mean'])
+        stats['std'].append(comming_stats['std'])
+
+    def stat_linear_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            x = x[0]
+        input_stats = get_tensor_stat(x)
+        update_stats(name, 'input', input_stats)
+
+        output_stats = get_tensor_stat(y)
+        update_stats(name, 'output', output_stats)
+
+    def stat_qktmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            q = x[0]
+            k = x[1]
+            bsz, num_heads, q_len, head_dim = q.shape
+            q = q.transpose(1, 2).reshape(-1, num_heads * head_dim)
+            k = k.transpose(2, 3).transpose(1, 2).reshape(-1, num_heads * head_dim)
+        q_stats = get_tensor_stat(q)
+        update_stats(name, 'q', q_stats)
+
+        k_stats = get_tensor_stat(k)
+        update_stats(name, 'k', k_stats)
+
+    def stat_pvmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            v = x[1]
+            bsz, num_heads, q_len, head_dim = v.shape
+            v = v.transpose(1, 2).reshape(-1, num_heads * head_dim)
+
+        v_stats = get_tensor_stat(v)
+        update_stats(name, 'v', v_stats)
+
+    hooks = []
+    for name, m in model.named_modules():
+        if isinstance(m, (QuantLinear, OmniLlamaRMSNorm, OmniLayerNorm)):
+            hooks.append(
+                m.register_forward_hook(
+                    functools.partial(stat_linear_hook, name=name))
+            )
+            print(f"Register hook for {name} ({type(m)})")
+        elif isinstance(m, QuantMatMul):
+            if "qkt" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_qktmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
+            elif "pv" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_pvmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
+
+    for i in tqdm(range(num_samples)):
+        model(dataloader[i][0].to(device))
+
+    for h in hooks:
+        h.remove()
+
+    # get average mean and std
+    for name, stats in outlier_stats.items():
+        for category, stat_list in stats.items():
+            stat_list['mean'] = torch.stack(stat_list['mean']).mean(dim=0)
+            stat_list['std'] = torch.stack(stat_list['std']).mean(dim=0)
+
+    # second round: get outlier stats
+    def get_outlier_stat(tensor, mean, std) -> dict:
+        hidden_dim = tensor.shape[-1]
+        tensor = tensor.view(-1, hidden_dim).detach()
+        outlier_mask = ((tensor - mean) / std).abs() > 3
+        stats = {}
+        stats['ratio'] = outlier_mask.float().mean(dim=0).cpu()
+        stats['min'] = torch.min(tensor * outlier_mask, dim=0)[0].cpu()
+        stats['max'] = torch.max(tensor * outlier_mask, dim=0)[0].cpu()
+        stats['l2_norm'] = torch.sum((tensor * outlier_mask) ** 2, dim=0).cpu()
+        stats['all_l2_norm'] = torch.sum(tensor ** 2, dim=0).cpu()
+        return stats
+    
+    def update_outlier_stats(name, category, comming_stats):
+        outlier_stats.setdefault(name, {})
+        outlier_stats[name].setdefault(category, {
+            'ratio': [],
+            'min': [],
+            'max': [],
+            'l2_norm': [],
+            'all_l2_norm': [],
+        })
+        stats = outlier_stats[name][category]
+        
+        stats['ratio'].append(comming_stats['ratio'])
+        stats['min'].append(comming_stats['min'])
+        stats['max'].append(comming_stats['max'])
+        stats['l2_norm'].append(comming_stats['l2_norm'])
+        stats['all_l2_norm'].append(comming_stats['all_l2_norm'])
+
+    def stat_outlier_linear_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            x = x[0]
+        input_stats = get_outlier_stat(x, outlier_stats[name]['input']['mean'], outlier_stats[name]['input']['std'])
+        update_outlier_stats(name, 'input', input_stats)
+
+        output_stats = get_outlier_stat(y, outlier_stats[name]['output']['mean'], outlier_stats[name]['output']['std'])
+        update_outlier_stats(name, 'output', output_stats)
+
+    def stat_outlier_qktmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            q = x[0]
+            k = x[1]
+            bsz, num_heads, q_len, head_dim = q.shape
+            q = q.transpose(1, 2).reshape(-1, num_heads * head_dim)
+            k = k.transpose(2, 3).transpose(1, 2).reshape(-1, num_heads * head_dim)
+        q_stats = get_outlier_stat(q, outlier_stats[name]['q']['mean'], outlier_stats[name]['q']['std'])
+        update_outlier_stats(name, 'q', q_stats)
+
+        k_stats = get_outlier_stat(k, outlier_stats[name]['k']['mean'], outlier_stats[name]['k']['std'])
+        update_outlier_stats(name, 'k', k_stats)
+
+    def stat_outlier_pvmatmul_hook(m, x, y, name):
+        if isinstance(x, tuple):
+            v = x[1]
+            bsz, num_heads, q_len, head_dim = v.shape
+            v = v.transpose(1, 2).reshape(-1, num_heads * head_dim)
+
+        v_stats = get_outlier_stat(v, outlier_stats[name]['v']['mean'], outlier_stats[name]['v']['std'])
+        update_outlier_stats(name, 'v', v_stats)
+
+    hooks = []
+    for name, m in model.named_modules():
+        if isinstance(m, (QuantLinear, OmniLlamaRMSNorm, OmniLayerNorm)):
+            hooks.append(
+                m.register_forward_hook(
+                    functools.partial(stat_outlier_linear_hook, name=name))
+            )
+            print(f"Register hook for {name} ({type(m)})")
+        elif isinstance(m, QuantMatMul):
+            if "qkt" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_outlier_qktmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
+            elif "pv" in name:
+                hooks.append(
+                    m.register_forward_hook(
+                        functools.partial(stat_outlier_pvmatmul_hook, name=name))
+                )
+                print(f"Register hook for {name} ({type(m)})")
+
+    for i in tqdm(range(num_samples)):
+        model(dataloader[i][0].to(device))
+
+    for h in hooks:
+        h.remove()
+
+    # get average outlier stats
+    for name, stats in outlier_stats.items():
+        for category, stat_list in stats.items():
+            stat_list['ratio'] = torch.stack(stat_list['ratio']).mean(dim=0)
+            stat_list['min'] = torch.stack(stat_list['min']).min(dim=0)
+            stat_list['max'] = torch.stack(stat_list['max']).max(dim=0)
+            stat_list['l2_norm'] = torch.stack(stat_list['l2_norm']).sum(dim=0).sqrt()
+            stat_list['all_l2_norm'] = torch.stack(stat_list['all_l2_norm']).sum(dim=0).sqrt()
+
+    return outlier_stats
+
 
 def build_model_and_tokenizer(model_name):
     kwargs = {"torch_dtype": torch.float16, "device_map": "auto"}
@@ -281,6 +482,7 @@ def parse_args():
     parser.add_argument("--act-stats-output-path", type=str, default="./act_stats/", 
                         help="Where to save all act stats")
     parser.add_argument("--profile-all-stats", action="store_true", default=False, help="Profile all stats")
+    parser.add_argument("--profile-outlier-stats", action="store_true", default=False, help="Profile outlier stats")
     args = parser.parse_args()
     return args
 
@@ -312,6 +514,18 @@ def main():
         save_path = os.path.join(args.act_stats_output_path,f'{args.net}.pt')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(act_stats, save_path)
+    elif args.profile_outlier_stats:
+        args.weight_quant_params = {}
+        args.act_quant_params = {}
+        args.q_quant_params = {}
+        args.k_quant_params = {}
+        args.p_quant_params = {}
+        args.v_quant_params = {}
+        wrap_up_model(model, args)
+        outlier_stats = get_outlier_stats(model, dataloader, args.num_samples)
+        save_path = os.path.join(args.act_stats_output_path,f'{args.net}_outlier.pt')
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        torch.save(outlier_stats, save_path)
     else:
         act_scales = get_act_scales(model, dataloader,args.num_samples)
         save_path = os.path.join(args.scales_output_path,f'{args.net}.pt')
