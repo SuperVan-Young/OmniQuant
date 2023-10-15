@@ -304,15 +304,12 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             'all_l2_norm': [],
 
             # quantization mse per tensor
-            'normal_mse_4bits': [],
-            'normal_mse_8bits': [],
-            'normal_mse_16bits': [],
-            'outlier_mse_4bits': [],
-            'outlier_mse_8bits': [],
-            'outlier_mse_16bits': [],
-            'all_mse_4bits': [],
-            'all_mse_8bits': [],
-            'all_mse_16bits': [],
+            'normal_mse_int4': [],
+            'normal_mse_int8': [],
+            'outlier_mse_int4': [],
+            'outlier_mse_int8': [],
+            'outlier_mse_e1m2': [],
+            'outlier_mse_e2m1': [],
         })
         stats = outlier_stats[name][category]
         
@@ -391,23 +388,52 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
     # second round: get outlier stats
 
     # quantize outliers with different datatypes
-    # Here we use different scaling factor from normal quantization
+    # Here we use unified scaling factor for normal and outlier values
     # to see the required precision for outliers
-    def fakequant_tensor(x, xabsmax, n_bits):
+    def fakequant_tensor(x, xabsmax, quant_grid: torch.tensor):
         # assume symmetric quantization with integer encoding
-        scale = xabsmax / (2 ** (n_bits - 1) - 1)
-        qmin = - (2 ** (n_bits - 1))
-        qmax = -qmin - 1
-        x_int = (x / scale).round().clamp(qmin, qmax)
-        x_dequant = x_int * scale
-        return x_dequant
-    
-    def get_mse(x, x_dequant):
+        if isinstance(quant_grid, str):
+            assert 'int' in quant_grid
+            n_bits = int(quant_grid[3:])
+            scale = xabsmax / (2 ** (n_bits - 1) - 1)
+            qmax = 2 ** (n_bits - 1) - 1
+            qmin = -qmax - 1
+            x_q = torch.round(x / scale)
+            x_dequant = x_q * scale
+        else:
+            quant_grid = quant_grid.to(x.device)
+            max_quant_val = max(quant_grid)
+            scale = xabsmax / max_quant_val
+
+            x_q = x / scale
+            diff = torch.abs(x_q.unsqueeze(-1) - quant_grid.unsqueeze(0))
+            index = diff.argmin(dim=-1)
+            x_q = quant_grid[index]
+
+            x_dequant = x_q * scale
+
         mse = ((x - x_dequant) ** 2).mean().cpu()
         # check if mse is nan
         if torch.isnan(mse):
             mse = torch.tensor(0.0)
-        return mse
+
+        return x_dequant, mse
+    
+    def get_float_grid(exp_bit = 2, mant_bit = 1, signed = True):
+        values = [0]
+
+        for e in range(2 ** exp_bit):
+            for m in range(2 ** mant_bit):
+                if e == 0 and m == 0:
+                    continue
+                v = 2 ** e * (2 **mant_bit + m)
+                values.append(v)
+                if signed:
+                    values.append(-v)
+        values = torch.tensor(values)
+        values, _ = torch.sort(values)
+        return values
+
 
     def get_outlier_stat(tensor, tensor_stat, threshold=3) -> dict:
         hidden_dim = tensor.shape[-1]
@@ -444,18 +470,18 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         x_normal_absmax = (torch.tensor([-1, 1]) * threshold * tensor_std + tensor_mean).abs().max()
         x_outlier_absmax = torch.tensor([tensor_min, tensor_max]).abs().max()
 
-        for n_bits in [4, 8, 16]:
-            # only quantize normal values, use range between threshold
-            x_normal_dequant = fakequant_tensor(x_normal, x_normal_absmax, n_bits)
-            stats[f'normal_mse_{n_bits}bits'] = get_mse(x_normal, x_normal_dequant)
+        quant_grid_e1m2 = get_float_grid(1, 2, signed=True)
+        quant_grid_e2m1 = get_float_grid(2, 1, signed=True)
 
-            # only quantize outlier values, use full range
-            x_outlier_dequant = fakequant_tensor(x_outlier, x_outlier_absmax, n_bits)
-            stats[f'outlier_mse_{n_bits}bits'] = get_mse(x_outlier, x_outlier_dequant)
+        # only quantize normal values, use range between threshold
+        _, stats[f'normal_mse_int4'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int4')
+        _, stats[f'normal_mse_int8'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int8')
 
-            # if we don't separate normal and outliers
-            x_dequant = fakequant_tensor(tensor, x_outlier_absmax, n_bits)
-            stats[f'all_mse_{n_bits}bits'] = get_mse(tensor, x_dequant)
+        # only quantize outlier values, use full range
+        _, stats[f'outlier_mse_int4'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int4')
+        _, stats[f'outlier_mse_int8'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int8')
+        _, stats[f'outlier_mse_e1m2'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e1m2)
+        _, stats[f'outlier_mse_e2m1'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e2m1)
 
         return stats
     
@@ -532,6 +558,10 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             stat_list['outlier_l1_norm'] = torch.stack(stat_list['outlier_l1_norm']).mean(dim=0)
             stat_list['outlier_l2_norm'] = torch.stack(stat_list['outlier_l2_norm']).mean(dim=0)
             stat_list['outlier_ratio'] = torch.stack(stat_list['outlier_ratio']).mean(dim=0)
+
+            for mse_name, mse_list in stat_list.items():
+                if 'mse' not in mse_name: continue
+                stat_list[mse_name] = torch.stack(mse_list).mean()
 
     return outlier_stats
 
