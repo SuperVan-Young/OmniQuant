@@ -9,6 +9,7 @@ from copy import deepcopy
 parser = argparse.ArgumentParser()
 parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], help="server type")
 parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], type=str, help="model list")
+parser.add_argument("--no-large", action='store_true', help="exclude large models")
 
 args = parser.parse_args()
 
@@ -95,6 +96,13 @@ elif args.model_list == 'llama_all':
     MODEL_LIST = LLAMA_ALL_MODEL_LIST
 else:
     raise NotImplementedError
+
+if args.no_large:
+    model_size = {model: float(model.split('-')[1].replace('b', '')) for model in MODEL_LIST}
+    for model in MODEL_LIST:
+        if model_size[model] > 60:
+            MODEL_LIST.remove(model)
+    print(MODEL_LIST)
 
 CONFIG_DICT = {
     ###############################################
