@@ -21,6 +21,7 @@ temp.sh
 
 test.ipynb
 act_stats/
+outlier_stats/
 log.csv
 scripts/aow*
 output/
