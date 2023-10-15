@@ -278,6 +278,8 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         hidden_dim = tensor.shape[-1]
         tensor = tensor.view(-1, hidden_dim).detach()
         stats = {}
+        stats['tensor_min'] = torch.min(tensor).float().cpu()
+        stats['tensor_max'] = torch.max(tensor).float().cpu()
         stats['tensor_mean'] = torch.mean(tensor).float().cpu()
         stats['tensor_std'] = torch.std(tensor).float().cpu()
         return stats
@@ -288,18 +290,34 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             # whole tensor
             'tensor_mean': [],
             'tensor_std': [],
+            'tensor_min': [],
+            'tensor_max': [],
 
-            # outlier stats
+            # outlier stats per channel
             'outlier_ratio': [],
             'outlier_min': [],
             'outlier_max': [],
             'outlier_l1_norm': [],
             'outlier_l2_norm': [],
 
+            # all l2 norm per channel
             'all_l2_norm': [],
+
+            # quantization mse per tensor
+            'normal_mse_4bits': [],
+            'normal_mse_8bits': [],
+            'normal_mse_16bits': [],
+            'outlier_mse_4bits': [],
+            'outlier_mse_8bits': [],
+            'outlier_mse_16bits': [],
+            'all_mse_4bits': [],
+            'all_mse_8bits': [],
+            'all_mse_16bits': [],
         })
         stats = outlier_stats[name][category]
         
+        stats['tensor_min'].append(comming_stats['tensor_min'])
+        stats['tensor_max'].append(comming_stats['tensor_max'])
         stats['tensor_mean'].append(comming_stats['tensor_mean'])
         stats['tensor_std'].append(comming_stats['tensor_std'])
 
@@ -365,20 +383,44 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
     # get average mean and std
     for name, stats in outlier_stats.items():
         for category, stat_list in stats.items():
-            stat_list['tensor_mean'] = torch.stack(stat_list['tensor_mean']).mean(dim=0)
-            stat_list['tensor_std'] = torch.stack(stat_list['tensor_std']).mean(dim=0)
+            stat_list['tensor_min'] = torch.stack(stat_list['tensor_min']).min().item()
+            stat_list['tensor_max'] = torch.stack(stat_list['tensor_max']).max().item()
+            stat_list['tensor_mean'] = torch.stack(stat_list['tensor_mean']).mean().item()
+            stat_list['tensor_std'] = torch.stack(stat_list['tensor_std']).mean().item()
 
     # second round: get outlier stats
 
-    # TODO: quantize outliers with different datatypes
+    # quantize outliers with different datatypes
+    # Here we use different scaling factor from normal quantization
+    # to see the required precision for outliers
+    def fakequant_tensor(x, xabsmax, n_bits):
+        # assume symmetric quantization with integer encoding
+        scale = xabsmax / (2 ** (n_bits - 1) - 1)
+        qmin = - (2 ** (n_bits - 1))
+        qmax = -qmin - 1
+        x_int = (x / scale).round().clamp(qmin, qmax)
+        x_dequant = x_int * scale
+        return x_dequant
+    
+    def get_mse(x, x_dequant):
+        mse = ((x - x_dequant) ** 2).mean().cpu()
+        # check if mse is nan
+        if torch.isnan(mse):
+            mse = torch.tensor(0.0)
+        return mse
 
-    def get_outlier_stat(tensor, mean, std, threshold=3) -> dict:
+    def get_outlier_stat(tensor, tensor_stat, threshold=3) -> dict:
         hidden_dim = tensor.shape[-1]
         tensor = tensor.view(-1, hidden_dim).float().detach()
-        mean = mean.item()
-        std = std.item()
-        outlier_mask = ((tensor - mean) / std).abs() > threshold
+
+        tensor_mean = tensor_stat['tensor_mean']
+        tensor_std = tensor_stat['tensor_std']
+        tensor_min = tensor_stat['tensor_min']
+        tensor_max = tensor_stat['tensor_max']
+
+        outlier_mask = ((tensor - tensor_mean) / tensor_std).abs() > threshold
         num_outlier_per_channel = outlier_mask.sum(dim=0).float()
+
         stats = {}
         stats['outlier_ratio'] = outlier_mask.float().mean(dim=0).cpu()
         stats['outlier_min'] = torch.min(tensor * outlier_mask, dim=0)[0].cpu()
@@ -396,25 +438,39 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         stats['outlier_l1_norm'][num_outlier_per_channel == 0] = 0
         stats['outlier_l1_norm'] = stats['outlier_l1_norm'].cpu()
 
+        # calculate MSE for quantization
+        x_normal = tensor[~outlier_mask]
+        x_outlier = tensor[outlier_mask]
+        x_normal_absmax = (torch.tensor([-1, 1]) * threshold * tensor_std + tensor_mean).abs().max()
+        x_outlier_absmax = torch.tensor([tensor_min, tensor_max]).abs().max()
+
+        for n_bits in [4, 8, 16]:
+            # only quantize normal values, use range between threshold
+            x_normal_dequant = fakequant_tensor(x_normal, x_normal_absmax, n_bits)
+            stats[f'normal_mse_{n_bits}bits'] = get_mse(x_normal, x_normal_dequant)
+
+            # only quantize outlier values, use full range
+            x_outlier_dequant = fakequant_tensor(x_outlier, x_outlier_absmax, n_bits)
+            stats[f'outlier_mse_{n_bits}bits'] = get_mse(x_outlier, x_outlier_dequant)
+
+            # if we don't separate normal and outliers
+            x_dequant = fakequant_tensor(tensor, x_outlier_absmax, n_bits)
+            stats[f'all_mse_{n_bits}bits'] = get_mse(tensor, x_dequant)
+
         return stats
     
     def update_outlier_stats(name, category, comming_stats):
         stats = outlier_stats[name][category]
-        
-        stats['outlier_ratio'].append(comming_stats['outlier_ratio'])
-        stats['outlier_min'].append(comming_stats['outlier_min'])
-        stats['outlier_max'].append(comming_stats['outlier_max'])
-        stats['outlier_l1_norm'].append(comming_stats['outlier_l1_norm'])
-        stats['outlier_l2_norm'].append(comming_stats['outlier_l2_norm'])
-        stats['all_l2_norm'].append(comming_stats['all_l2_norm'])
+        for k, v in comming_stats.items():
+            stats[k].append(v)
 
     def stat_outlier_linear_hook(m, x, y, name):
         if isinstance(x, tuple):
             x = x[0]
-        input_stats = get_outlier_stat(x, outlier_stats[name]['input']['tensor_mean'], outlier_stats[name]['input']['tensor_std'], threshold=threshold)
+        input_stats = get_outlier_stat(x, outlier_stats[name]['input'], threshold=threshold)
         update_outlier_stats(name, 'input', input_stats)
 
-        output_stats = get_outlier_stat(y, outlier_stats[name]['output']['tensor_mean'], outlier_stats[name]['output']['tensor_std'], threshold=threshold)
+        output_stats = get_outlier_stat(y, outlier_stats[name]['output'], threshold=threshold)
         update_outlier_stats(name, 'output', output_stats)
 
     def stat_outlier_qktmatmul_hook(m, x, y, name):
@@ -424,10 +480,10 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             bsz, num_heads, q_len, head_dim = q.shape
             q = q.transpose(1, 2).reshape(-1, num_heads * head_dim)
             k = k.transpose(2, 3).transpose(1, 2).reshape(-1, num_heads * head_dim)
-        q_stats = get_outlier_stat(q, outlier_stats[name]['q']['tensor_mean'], outlier_stats[name]['q']['tensor_std'], threshold=threshold)
+        q_stats = get_outlier_stat(q, outlier_stats[name]['q'], threshold=threshold)
         update_outlier_stats(name, 'q', q_stats)
 
-        k_stats = get_outlier_stat(k, outlier_stats[name]['k']['tensor_mean'], outlier_stats[name]['k']['tensor_std'], threshold=threshold)
+        k_stats = get_outlier_stat(k, outlier_stats[name]['k'], threshold=threshold)
         update_outlier_stats(name, 'k', k_stats)
 
     def stat_outlier_pvmatmul_hook(m, x, y, name):
@@ -436,7 +492,7 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             bsz, num_heads, q_len, head_dim = v.shape
             v = v.transpose(1, 2).reshape(-1, num_heads * head_dim)
 
-        v_stats = get_outlier_stat(v, outlier_stats[name]['v']['tensor_mean'], outlier_stats[name]['v']['tensor_std'], threshold=threshold)
+        v_stats = get_outlier_stat(v, outlier_stats[name]['v'], threshold=threshold)
         update_outlier_stats(name, 'v', v_stats)
 
     hooks = []
