@@ -138,20 +138,18 @@ DEMO_LOOKUP = {
         'W16A16',
         'qkvproj_W16A4',
         'qkvproj_W16A8',
-        'qkvproj_W16A4_static',
-        'qkvproj_W16A8_static',
         'oproj_W16A4',
         'oproj_W16A8',
-        'oproj_W16A4_static',
-        'oproj_W16A8_static',
         'fc1_W16A4',
         'fc1_W16A8',
-        'fc1_W16A4_static',
-        'fc1_W16A8_static',
         'fc2_W16A4',
         'fc2_W16A8',
-        'fc2_W16A4_static',
-        'fc2_W16A8_static',
+        'q_W16A4',
+        'q_W16A8',
+        'k_W16A4',
+        'k_W16A8',
+        'v_W16A4',
+        'v_W16A8',
     ],
     'model_list': ['opt-6.7b', 'llama-7b-meta'],
     'save_path': 'results/demo.csv'
@@ -169,9 +167,14 @@ if __name__ == '__main__':
         )
 
     df_demo = collect_results("./output_demo")
-    print(df_demo)
-
     lookup_results(
         df_demo, 
+        **DEMO_LOOKUP,
+    )
+    
+    df_demo_static = collect_results("./output_demo_static")
+    DEMO_LOOKUP['save_path'] = 'results/demo_static.csv'
+    lookup_results(
+        df_demo_static, 
         **DEMO_LOOKUP,
     )

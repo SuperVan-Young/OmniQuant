@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], default='V100', help="server type")
 parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], default='demo', type=str, help="model list")
 parser.add_argument("--no-large", action='store_true', help="exclude large models")
+parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token", 'none'])
 
 args = parser.parse_args()
 
@@ -127,18 +128,6 @@ CONFIG_DICT = {
         "abits": 8,
         "aow-quant-act-qkvproj": None,
     },
-    "qkvproj_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-qkvproj": None,
-        "a_dynamic_method": 'none',
-    },
-    "qkvproj_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-qkvproj": None,
-        "a_dynamic_method": 'none',
-    },
 
 
     # fc1 W16A4 & W16A8
@@ -152,18 +141,6 @@ CONFIG_DICT = {
         "abits": 8,
         "aow-quant-act-fc1": None,
     },
-    "fc1_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc1": None,
-        "a_dynamic_method": 'none',
-    },
-    "fc1_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc1": None,
-        "a_dynamic_method": 'none',
-    },
 
     # oproj W16A4 & W16A8
     "oproj_W16A4": {
@@ -176,18 +153,6 @@ CONFIG_DICT = {
         "abits": 8,
         "aow-quant-act-oproj": None,
     },
-    "oproj_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-        "a_dynamic_method": 'none',
-    },
-    "oproj_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-oproj": None,
-        "a_dynamic_method": 'none',
-    },
 
     # fc2 W16A4 & W16A8
     "fc2_W16A4": {
@@ -199,18 +164,6 @@ CONFIG_DICT = {
         "wbits": 16,
         "abits": 8,
         "aow-quant-act-fc2": None,
-    },
-    "fc2_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "a_dynamic_method": 'none',
-    },
-    "fc2_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc2": None,
-        "a_dynamic_method": 'none',
     },
 
     #TODO: static quantization for q/k/v
@@ -344,9 +297,6 @@ CONFIG_DICT = {
         "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
     
-    # q/k/v: (already groupwise) + outlier
-    #TODO: add scripts
-
 }
 
 def gen_single_experiment_script(
@@ -377,6 +327,8 @@ CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
 """
     if len(available_gpus.split(",")) > 1:
         scripts += "--multigpu \\\n"
+    if args.a_dynamic_method == "none":
+        scripts += "--a_dynamic_method none \\\n"
     for config_name, config_val in extra_configs.items():
         if config_val is None:
             scripts += f"--{config_name} \\\n"
@@ -503,7 +455,11 @@ def gen_debugging_script(
         f.write("# This script is exptected to be run on server %s.\n\n" % EXPERIMENT_SERVER)
 
         f.write(f"MODEL_DIR={MODEL_DIR}\n")
-        f.write(f"OUTPUT_DIR=./output_demo\n\n")
+
+        if args.a_dynamic_method == 'none':
+            f.write(f"OUTPUT_DIR=./output_static_demo\n\n")
+        else:
+            f.write(f"OUTPUT_DIR=./output_demo\n\n")
 
         used_gpu = 0
 
