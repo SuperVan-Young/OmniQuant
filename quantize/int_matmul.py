@@ -46,7 +46,7 @@ class QuantMatMul(nn.Module):
     def quant_x2(self, x2):
         if self.use_x2_quant is not None:
             if self.use_x2_quant:
-                x2 = self.x1_quantizer(x2)
+                x2 = self.x2_quantizer(x2)
             return x2
 
         if self.use_act_quant:
