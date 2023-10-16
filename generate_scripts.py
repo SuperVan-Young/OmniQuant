@@ -33,6 +33,7 @@ else:
 DEMO_MODEL_LIST = [
     # Now that we don't modify TransformerLayer, we can use one type of CasualLM
     "opt-6.7b",
+    "llama-7b-meta",
 ]
 
 SMALL_MODEL_LIST = [
@@ -110,22 +111,22 @@ CONFIG_DICT = {
     ###############################################
 
     # FULL PRECISION
-    # "W16A16": {
-    #     "wbits": 16,
-    #     "abits": 16,
-    # },
+    "W16A16": {
+        "wbits": 16,
+        "abits": 16,
+    },
 
     # qkvproj W16A4 & W16A8
-    # "qkvproj_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-qkvproj": None,
-    # },
-    # "qkvproj_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-qkvproj": None,
-    # },
+    "qkvproj_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-qkvproj": None,
+    },
+    "qkvproj_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-qkvproj": None,
+    },
     "qkvproj_W16A4_static": {
         "wbits": 16,
         "abits": 4,
@@ -141,16 +142,16 @@ CONFIG_DICT = {
 
 
     # fc1 W16A4 & W16A8
-    # "fc1_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-fc1": None,
-    # },
-    # "fc1_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-fc1": None,
-    # },
+    "fc1_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc1": None,
+    },
+    "fc1_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-fc1": None,
+    },
     "fc1_W16A4_static": {
         "wbits": 16,
         "abits": 4,
@@ -165,16 +166,16 @@ CONFIG_DICT = {
     },
 
     # oproj W16A4 & W16A8
-    # "oproj_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-oproj": None,
-    # },
-    # "oproj_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-oproj": None,
-    # },
+    "oproj_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-oproj": None,
+    },
+    "oproj_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-oproj": None,
+    },
     "oproj_W16A4_static": {
         "wbits": 16,
         "abits": 4,
@@ -189,16 +190,16 @@ CONFIG_DICT = {
     },
 
     # fc2 W16A4 & W16A8
-    # "fc2_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-fc2": None,
-    # },
-    # "fc2_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-fc2": None,
-    # },
+    "fc2_W16A4": {
+        "wbits": 16,
+        "abits": 4,
+        "aow-quant-act-fc2": None,
+    },
+    "fc2_W16A8": {
+        "wbits": 16,
+        "abits": 8,
+        "aow-quant-act-fc2": None,
+    },
     "fc2_W16A4": {
         "wbits": 16,
         "abits": 4,
@@ -365,7 +366,7 @@ def gen_single_experiment_script(
     if output_subdir is None:
         output_dir = f"$OUTPUT_DIR/{model_name}"
     else:
-        output_dir = f"$OUTPUT_DIR/{output_subdir}/{model_name}"
+        output_dir = f"$OUTPUT_DIR/{output_subdir}"
         scripts += f"mkdir -p {output_dir}"
 
     scripts += f"""
@@ -473,6 +474,15 @@ def gen_all_scripts(
         for config_name in CONFIG_DICT.keys():
             f.write(f"bash {script_dir}/{config_name}.sh\n")
 
+    # debugging scripts and entry
+    for model in DEMO_MODEL_LIST:
+        gen_debugging_script(model)
+
+    with open(os.path.join(script_dir, 'run_debugging.sh'), "w") as f:
+        f.write("#!/bin/bash\n\n")
+        for model in DEMO_MODEL_LIST:
+            f.write(f"bash {script_dir}/debugging_{model}.sh\n")
+
 def gen_debugging_script(
     model_name = 'opt-6.7b',
 ):
@@ -493,15 +503,15 @@ def gen_debugging_script(
         f.write("# This script is exptected to be run on server %s.\n\n" % EXPERIMENT_SERVER)
 
         f.write(f"MODEL_DIR={MODEL_DIR}\n")
-        f.write(f"OUTPUT_DIR=./output/debugging_{model_name}\n\n")
+        f.write(f"OUTPUT_DIR=./output_demo\n\n")
 
         used_gpu = 0
 
         for config_name, configs in CONFIG_DICT.items():
             # if 'W16A8' in config_name or 'W16A16' in config_name:
             #     continue
-            if len(config_name.split('_')) <= 2:
-                continue  # baseline experiments
+            # if len(config_name.split('_')) <= 2:
+            #     continue  # baseline experiments
 
             # use few eval dataset for debugging
             configs = deepcopy(configs)
@@ -517,7 +527,7 @@ def gen_debugging_script(
                 model_name,
                 available_gpus,
                 configs,
-                output_subdir=config_name
+                output_subdir=f"{config_name}/{model_name}"
             ))
             # prevent OOM by manually wait
             used_gpu += num_gpus
@@ -528,5 +538,3 @@ def gen_debugging_script(
 if __name__ == "__main__":
     # gen_all_scripts(SMALL_MODEL_LIST + MEDIAM_MODEL_LIST)
     gen_all_scripts(MODEL_LIST)
-    gen_debugging_script('opt-6.7b')
-    gen_debugging_script('llama-7b-meta')

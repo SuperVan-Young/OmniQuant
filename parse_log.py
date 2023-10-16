@@ -3,11 +3,11 @@ import pandas as pd
 
 os.makedirs("./results", exist_ok=True)
 
-def collect_results() -> pd.DataFrame:
+def collect_results(
+    output_dir='./output',
+) -> pd.DataFrame:
 
     df = pd.DataFrame(columns=['experiment', 'model', 'wikitext2', 'ptb', 'c4', 'ptb-new', 'c4-new'])
-
-    output_dir = './output'
 
     # listdir log
     for experiment in os.listdir(output_dir):
@@ -133,16 +133,45 @@ LOOKUPS = [
     },
 ]
 
+DEMO_LOOKUP = {
+    'experiment_list': [
+        'W16A16',
+        'qkvproj_W16A4',
+        'qkvproj_W16A8',
+        'qkvproj_W16A4_static',
+        'qkvproj_W16A8_static',
+        'oproj_W16A4',
+        'oproj_W16A8',
+        'oproj_W16A4_static',
+        'oproj_W16A8_static',
+        'fc1_W16A4',
+        'fc1_W16A8',
+        'fc1_W16A4_static',
+        'fc1_W16A8_static',
+        'fc2_W16A4',
+        'fc2_W16A8',
+        'fc2_W16A4_static',
+        'fc2_W16A8_static',
+    ],
+    'model_list': ['opt-6.7b', 'llama-7b-meta'],
+    'save_path': 'results/demo.csv'
+}
+
 if __name__ == '__main__':
-    df = collect_results()
-    # with open('log.csv', 'w') as f:
-    #     df.to_csv(f, index=False)
+    df_all = collect_results()
 
     for lookup in LOOKUPS:
         lookup_results(
-            df, 
+            df_all, 
             experiment_list=lookup['experiment_list'], 
             model_list=lookup['model_list'],
             save_path=lookup['save_path'],
         )
 
+    df_demo = collect_results("./output_demo")
+    print(df_demo)
+
+    lookup_results(
+        df_demo, 
+        **DEMO_LOOKUP,
+    )
