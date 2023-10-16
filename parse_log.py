@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from itertools import product
 
 os.makedirs("./results", exist_ok=True)
 
@@ -133,32 +134,41 @@ LOOKUPS = [
     },
 ]
 
+def get_experiment_list():
+    """
+    Demo experiment list
+    """
+    linear_layer_type_list = ['qkvproj', 'oproj', 'fc1', 'fc2']
+    matmul_layer_type_list = [ 'q', 'k', 'v']
+    outlier_ratio_list = [1/128, 1/64, 1/32, 1/16]
+    group_size_list = [128]
+
+    experiment_list = []
+    
+    for layer_type in linear_layer_type_list:
+        experiment_list.append(f"{layer_type}_W16A16")
+        experiment_list.append(f"{layer_type}_W16A4")
+        experiment_list.append(f"{layer_type}_W16A8")
+
+        for outlier_ratio in outlier_ratio_list:
+            ol_name = f"1p{int(1/outlier_ratio)}"
+            experiment_list.append(f"{layer_type}_W16A4_ol{ol_name}")
+        
+        for group_size in group_size_list:
+            experiment_list.append(f"{layer_type}_W16A4_g{group_size}")
+
+    for layer_type in matmul_layer_type_list:
+        experiment_list.append(f"{layer_type}_W16A16")
+        experiment_list.append(f"{layer_type}_W16A4")
+        experiment_list.append(f"{layer_type}_W16A8")
+
+    print(f"DEMO LOOKUP")
+    print(experiment_list)
+
+    return experiment_list
+
 DEMO_LOOKUP = {
-    'experiment_list': [
-        'W16A16',
-        'qkvproj_W16A4',
-        'qkvproj_W16A8',
-        'qkvproj_W16A4_ol1p128',
-        'oproj_W16A4',
-        'oproj_W16A8',
-        'oproj_W16A4_ol1p128',
-        'oproj_W16A4_g128',
-        'oproj_W16A4_g128_ol1p128',
-        'fc1_W16A4',
-        'fc1_W16A8',
-        'fc1_W16A4_ol1p128',
-        'fc2_W16A4',
-        'fc2_W16A8',
-        'fc2_W16A4_ol1p128',
-        'fc2_W16A4_g128',
-        'fc2_W16A4_g128_ol1p128',
-        'q_W16A4',
-        'q_W16A8',
-        'k_W16A4',
-        'k_W16A8',
-        'v_W16A4',
-        'v_W16A8',
-    ],
+    'experiment_list': get_experiment_list(),
     'model_list': ['opt-6.7b', 'llama-7b-meta'],
     'save_path': 'results/demo.csv'
 }
