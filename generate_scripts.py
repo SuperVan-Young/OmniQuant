@@ -111,62 +111,60 @@ CONFIG_DICT = {
     # Baseline Experiments
     ###############################################
 
-    # FULL PRECISION
-    "W16A16": {
-        "wbits": 16,
-        "abits": 16,
-    },
+    # # FULL PRECISION
+    # "W16A16": {
+    #     "wbits": 16,
+    #     "abits": 16,
+    # },
 
-    # qkvproj W16A4 & W16A8
-    "qkvproj_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-qkvproj": None,
-    },
-    "qkvproj_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-qkvproj": None,
-    },
+    # # qkvproj W16A4 & W16A8
+    # "qkvproj_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-qkvproj": None,
+    # },
+    # "qkvproj_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-qkvproj": None,
+    # },
 
 
-    # fc1 W16A4 & W16A8
-    "fc1_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc1": None,
-    },
-    "fc1_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc1": None,
-    },
+    # # fc1 W16A4 & W16A8
+    # "fc1_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-fc1": None,
+    # },
+    # "fc1_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-fc1": None,
+    # },
 
-    # oproj W16A4 & W16A8
-    "oproj_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-    },
-    "oproj_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-oproj": None,
-    },
+    # # oproj W16A4 & W16A8
+    # "oproj_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-oproj": None,
+    # },
+    # "oproj_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-oproj": None,
+    # },
 
-    # fc2 W16A4 & W16A8
-    "fc2_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-    },
-    "fc2_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc2": None,
-    },
-
-    #TODO: static quantization for q/k/v
+    # # fc2 W16A4 & W16A8
+    # "fc2_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-fc2": None,
+    # },
+    # "fc2_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-fc2": None,
+    # },
 
     # q W16A4 & W16A8
     "q_W16A4": {

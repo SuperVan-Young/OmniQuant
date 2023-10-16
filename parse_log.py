@@ -17,7 +17,7 @@ def collect_results(
         for model in models:
             logs = os.listdir(os.path.join(output_dir, experiment, model))
 
-            for log in sorted(logs, reverse=True):
+            for log in sorted(logs, reverse=False):
                 # use log with latest result
             
                 with open(os.path.join(output_dir, experiment, model, log), 'r') as f:
@@ -138,12 +138,16 @@ DEMO_LOOKUP = {
         'W16A16',
         'qkvproj_W16A4',
         'qkvproj_W16A8',
+        'qkvproj_W16A4_ol1p128',
         'oproj_W16A4',
         'oproj_W16A8',
+        'oproj_W16A4_ol1p128',
         'fc1_W16A4',
         'fc1_W16A8',
+        'fc1_W16A4_ol1p128',
         'fc2_W16A4',
         'fc2_W16A8',
+        'fc2_W16A4_ol1p128',
         'q_W16A4',
         'q_W16A8',
         'k_W16A4',
