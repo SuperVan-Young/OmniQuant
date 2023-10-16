@@ -172,7 +172,7 @@ if __name__ == '__main__':
         **DEMO_LOOKUP,
     )
     
-    df_demo_static = collect_results("./output_demo_static")
+    df_demo_static = collect_results("./output_static_demo")
     DEMO_LOOKUP['save_path'] = 'results/demo_static.csv'
     lookup_results(
         df_demo_static, 
