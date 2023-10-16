@@ -303,15 +303,17 @@ def aowquant(
 
                 # set scale and round zero point of normal values
                 if args.a_dynamic_method == 'none':
-                    xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype) * ~outlier_mask
-                    xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype) * ~outlier_mask
+                    xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype)
+                    xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype)
+                    xmax = torch.index_select(xmax, dim=-1, index=reorder_index) * ~final_outlier_mask
+                    xmin = torch.index_select(xmin, dim=-1, index=reorder_index) * ~final_outlier_mask
                     if args.act_group_size:
                         # we simply assume grouping has no deficiency!
                         xmax = xmax.view(-1, args.act_group_size)
                         xmin = xmin.view(-1, args.act_group_size)
                     scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits)
-                    round_zero_point = torch.index_select(round_zero_point, dim=-1, index=reorder_index)
-                    logger.info(f"Scale: {scale.item()}")
+                    if args.act_group_size is None:
+                        logger.info(f"Scale: {scale.item()}")
                     set_quantizer_scale_round_zero_point(module.act_quantizer, scale, round_zero_point)
 
                 # We first reorder, then apply outlier mask, after that grouping

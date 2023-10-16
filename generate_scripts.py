@@ -166,41 +166,41 @@ CONFIG_DICT = {
     #     "aow-quant-act-fc2": None,
     # },
 
-    # q W16A4 & W16A8
-    "q_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-q": None,
-    },
-    "q_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-q": None,
-    },
+    # # q W16A4 & W16A8
+    # "q_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-q": None,
+    # },
+    # "q_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-q": None,
+    # },
 
-    # k W16A4 & W16A8
-    "k_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-k": None,
-    },
-    "k_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-k": None,
-    },
+    # # k W16A4 & W16A8
+    # "k_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-k": None,
+    # },
+    # "k_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-k": None,
+    # },
 
-    # v W16A4 & W16A8
-    "v_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-v": None,
-    },
-    "v_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-v": None,
-    },
+    # # v W16A4 & W16A8
+    # "v_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-v": None,
+    # },
+    # "v_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-v": None,
+    # },
 
     ###############################################
     # Modifications
