@@ -120,6 +120,7 @@ def aowquant(
             "down_proj": "fc2",
         }
         layer_name_prefix = "model.layers"
+        a_dtype = torch.bfloat16
     elif "opt" in args.net.lower():
         layers = model.model.decoder.layers
         model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.to(dev)
@@ -138,6 +139,7 @@ def aowquant(
             "fc2":"fc2",
         }
         layer_name_prefix = "model.decoder.layers"
+        a_dtype = torch.float16
     elif "falcon" in args.net.lower():
         layers = model.transformer.h
         model.transformer.word_embeddings.to(dev)
@@ -147,11 +149,6 @@ def aowquant(
         layer_name_prefix = "model.transformer.h"
     else:
         raise ValueError("Only support for opt/llama/Llama-2/falcon now")
-    
-    if args.deactive_amp:
-        dtype = torch.float
-    else:
-        dtype = torch.float16
 
     # quantize every layer, and set high precision activation channels
     for i in range(len(layers)):
@@ -171,13 +168,13 @@ def aowquant(
                 # set enabling state of activation quantzier
                 linear_category = pairs[name.split(".")[-1]]
                 module.use_act_quant = getattr(args, f"aow_quant_act_{linear_category}")
-                # logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
                 if not module.use_act_quant:
                     continue
+                logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
-                act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=dtype).clamp(1e-5)
+                act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
@@ -285,6 +282,21 @@ def aowquant(
                     mean_act_scale_normal = torch.mean(act_scale_normal).item()
                     logger.info(f"outlier mean vs. normal mean: {mean_act_scale_outlier} vs. {mean_act_scale_normal}")
 
+                # set scale and round zero point
+                if args.a_dynamic_method == 'none':
+                    if args.act_group_size:
+                        raise NotImplementedError
+                    else:
+                        xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                        xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                        xrange = torch.max((xmax - xmin) * outlier_mask)
+                        scale = xrange / (2 ** args.abits - 1)
+                        scale = scale.clamp(min=1e-5, max=1e4)
+                        round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
+
+                    module.act_quantizer.scale = scale
+                    module.act_quantizer.round_zero_point = round_zero_point
+
                 # We first reorder, then apply outlier mask, after that grouping
                 module.act_quantizer.register_buffer('reorder_index', reorder_index)
                 module.act_quantizer.register_buffer('reorder_index_inv', reorder_index_inv)
@@ -294,10 +306,16 @@ def aowquant(
                 if "qkt_matmul" in name:
                     module.use_x1_quant = getattr(args, "aow_quant_act_q")
                     module.use_x2_quant = getattr(args, "aow_quant_act_k")
+                    if args.aow_quant_act_q:
+                        logger.info(f"Quantize activation (q) of {name}")
+                    if args.aow_quant_act_k:
+                        logger.info(f"Quantize activation (k) of {name}")
                 elif "pv_matmul" in name:
                     module.use_x2_quant = getattr(args, "aow_quant_act_v")
+                    if args.aow_quant_act_v:
+                        logger.info(f"Quantize activation (v) of {name}")
 
-        qlayer.register_scales_and_zeros()
+        # qlayer.register_scales_and_zeros()
         layers[i] = qlayer.to("cpu")
         del layer
         torch.cuda.empty_cache()

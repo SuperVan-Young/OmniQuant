@@ -122,7 +122,8 @@ class UniformAffineQuantizer(nn.Module):
         if self.dynamic_method == "per_token" or self.dynamic_method == "per_channel":
             self.per_token_dynamic_calibration(x)  # x remains the same shape
         else:
-            raise NotImplementedError()   
+            assert self.scale is not None
+            assert self.round_zero_point is not None
 
         x_dequant = self.fake_quant(x, self.scale, self.round_zero_point)
 
