@@ -15,12 +15,12 @@ CUDA_VISIBLE_DEVICES="1" python generate_act_scale_shift.py --model /home/xueche
 --num-samples 128 \
 --outlier-stats-output-path ./outlier_stats/3_sigma/  --outlier-threshold 3 &
 
-CUDA_VISIBLE_DEVICES="2" python generate_act_scale_shift.py --model /home/xuechenhao/hugginface/opt-6.7b --profile-outlier-stats \
---num-samples 128 \
---outlier-stats-output-path ./outlier_stats/6_sigma/  --outlier-threshold 6 &
+# CUDA_VISIBLE_DEVICES="2" python generate_act_scale_shift.py --model /home/xuechenhao/hugginface/opt-6.7b --profile-outlier-stats \
+# --num-samples 128 \
+# --outlier-stats-output-path ./outlier_stats/6_sigma/  --outlier-threshold 6 &
 
-CUDA_VISIBLE_DEVICES="3" python generate_act_scale_shift.py --model /home/xuechenhao/hugginface/llama-7b-meta --profile-outlier-stats \
---num-samples 128 \
---outlier-stats-output-path ./outlier_stats/6_sigma/  --outlier-threshold 6 &
+# CUDA_VISIBLE_DEVICES="3" python generate_act_scale_shift.py --model /home/xuechenhao/hugginface/llama-7b-meta --profile-outlier-stats \
+# --num-samples 128 \
+# --outlier-stats-output-path ./outlier_stats/6_sigma/  --outlier-threshold 6 &
 
 wait

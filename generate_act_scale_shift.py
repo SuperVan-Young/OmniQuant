@@ -282,6 +282,10 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         stats['tensor_max'] = torch.max(tensor).float().cpu()
         stats['tensor_mean'] = torch.mean(tensor).float().cpu()
         stats['tensor_std'] = torch.std(tensor).float().cpu()
+        stats['channel_min'] = torch.min(tensor, dim=0)[0].float().cpu()
+        stats['channel_max'] = torch.max(tensor, dim=0)[0].float().cpu()
+        stats['channel_mean'] = torch.mean(tensor, dim=0).float().cpu()
+        stats['channel_std'] = torch.std(tensor, dim=0).float().cpu()
         return stats
     
     def update_tensor_stats(name, category, comming_stats):
@@ -292,6 +296,12 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             'tensor_std': [],
             'tensor_min': [],
             'tensor_max': [],
+
+            # channel stats
+            'channel_mean': [],
+            'channel_std': [],
+            'channel_min': [],
+            'channel_max': [],
 
             # outlier stats per channel
             'outlier_ratio': [],
@@ -304,12 +314,12 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             'all_l2_norm': [],
 
             # quantization mse per tensor
-            'normal_mse_int4': [],
-            'normal_mse_int8': [],
-            'outlier_mse_int4': [],
-            'outlier_mse_int8': [],
-            'outlier_mse_e1m2': [],
-            'outlier_mse_e2m1': [],
+            # 'normal_mse_int4': [],
+            # 'normal_mse_int8': [],
+            # 'outlier_mse_int4': [],
+            # 'outlier_mse_int8': [],
+            # 'outlier_mse_e1m2': [],
+            # 'outlier_mse_e2m1': [],
         })
         stats = outlier_stats[name][category]
         
@@ -317,6 +327,11 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         stats['tensor_max'].append(comming_stats['tensor_max'])
         stats['tensor_mean'].append(comming_stats['tensor_mean'])
         stats['tensor_std'].append(comming_stats['tensor_std'])
+
+        stats['channel_min'].append(comming_stats['channel_min'])
+        stats['channel_max'].append(comming_stats['channel_max'])
+        stats['channel_mean'].append(comming_stats['channel_mean'])
+        stats['channel_std'].append(comming_stats['channel_std'])
 
     def stat_linear_hook(m, x, y, name):
         if isinstance(x, tuple):
@@ -384,6 +399,11 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
             stat_list['tensor_max'] = torch.stack(stat_list['tensor_max']).max().item()
             stat_list['tensor_mean'] = torch.stack(stat_list['tensor_mean']).mean().item()
             stat_list['tensor_std'] = torch.stack(stat_list['tensor_std']).mean().item()
+
+            stat_list['channel_min'] = torch.stack(stat_list['channel_min']).min(dim=0)[0]
+            stat_list['channel_max'] = torch.stack(stat_list['channel_max']).max(dim=0)[0]
+            stat_list['channel_mean'] = torch.stack(stat_list['channel_mean']).mean(dim=0)
+            stat_list['channel_std'] = torch.stack(stat_list['channel_std']).mean(dim=0)
 
     # second round: get outlier stats
 
@@ -454,34 +474,34 @@ def get_outlier_stats(model, dataloader, num_samples=128, threshold=3):
         stats['all_l2_norm'] = torch.mean(tensor ** 2, dim=0).cpu()
 
         # compute norm of non-zero elements for each channel
-        square_sum = tensor.masked_select(outlier_mask).pow(2).sum(dim=0)
+        square_sum = (tensor * outlier_mask).pow(2).sum(dim=0)
         stats['outlier_l2_norm'] = square_sum / num_outlier_per_channel
         stats['outlier_l2_norm'][num_outlier_per_channel == 0] = 0  # ensure not to divide by zero
         stats['outlier_l2_norm'] = stats['outlier_l2_norm'].cpu()
 
-        abs_sum = tensor.masked_select(outlier_mask).abs().sum(dim=0)
+        abs_sum = (tensor * outlier_mask).abs().sum(dim=0)
         stats['outlier_l1_norm'] = abs_sum / num_outlier_per_channel
         stats['outlier_l1_norm'][num_outlier_per_channel == 0] = 0
         stats['outlier_l1_norm'] = stats['outlier_l1_norm'].cpu()
 
-        # calculate MSE for quantization
-        x_normal = tensor[~outlier_mask]
-        x_outlier = tensor[outlier_mask]
-        x_normal_absmax = (torch.tensor([-1, 1]) * threshold * tensor_std + tensor_mean).abs().max()
-        x_outlier_absmax = torch.tensor([tensor_min, tensor_max]).abs().max()
+        # # calculate MSE for quantization
+        # x_normal = tensor[~outlier_mask]
+        # x_outlier = tensor[outlier_mask]
+        # x_normal_absmax = (torch.tensor([-1, 1]) * threshold * tensor_std + tensor_mean).abs().max()
+        # x_outlier_absmax = torch.tensor([tensor_min, tensor_max]).abs().max()
 
-        quant_grid_e1m2 = get_float_grid(1, 2, signed=True)
-        quant_grid_e2m1 = get_float_grid(2, 1, signed=True)
+        # quant_grid_e1m2 = get_float_grid(1, 2, signed=True)
+        # quant_grid_e2m1 = get_float_grid(2, 1, signed=True)
 
-        # only quantize normal values, use range between threshold
-        _, stats[f'normal_mse_int4'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int4')
-        _, stats[f'normal_mse_int8'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int8')
+        # # only quantize normal values, use range between threshold
+        # _, stats[f'normal_mse_int4'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int4')
+        # _, stats[f'normal_mse_int8'] = fakequant_tensor(x_normal, x_normal_absmax, quant_grid='int8')
 
-        # only quantize outlier values, use full range
-        _, stats[f'outlier_mse_int4'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int4')
-        _, stats[f'outlier_mse_int8'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int8')
-        _, stats[f'outlier_mse_e1m2'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e1m2)
-        _, stats[f'outlier_mse_e2m1'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e2m1)
+        # # only quantize outlier values, use full range
+        # _, stats[f'outlier_mse_int4'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int4')
+        # _, stats[f'outlier_mse_int8'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid='int8')
+        # _, stats[f'outlier_mse_e1m2'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e1m2)
+        # _, stats[f'outlier_mse_e2m1'] = fakequant_tensor(x_outlier, x_outlier_absmax, quant_grid=quant_grid_e2m1)
 
         return stats
     
