@@ -4,13 +4,14 @@ import os
 import math
 import argparse
 from copy import deepcopy
+from itertools import product
 
 # parse args
 parser = argparse.ArgumentParser()
 parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], default='V100', help="server type")
 parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], default='demo', type=str, help="model list")
 parser.add_argument("--no-large", action='store_true', help="exclude large models")
-parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token", 'none'])
+parser.add_argument("--a_dynamic_method", type=str, default="none", choices=["per_token", 'none'])
 
 args = parser.parse_args()
 
@@ -106,196 +107,90 @@ if args.no_large:
             MODEL_LIST.remove(model)
     print(MODEL_LIST)
 
-CONFIG_DICT = {
-    ###############################################
-    # Baseline Experiments
-    ###############################################
+CONFIG_DICT = {}
 
-    # # FULL PRECISION
-    # "W16A16": {
-    #     "wbits": 16,
-    #     "abits": 16,
-    # },
-
-    # # qkvproj W16A4 & W16A8
-    # "qkvproj_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-qkvproj": None,
-    # },
-    # "qkvproj_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-qkvproj": None,
-    # },
-
-
-    # # fc1 W16A4 & W16A8
-    # "fc1_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-fc1": None,
-    # },
-    # "fc1_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-fc1": None,
-    # },
-
-    # # oproj W16A4 & W16A8
-    # "oproj_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-oproj": None,
-    # },
-    # "oproj_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-oproj": None,
-    # },
-
-    # # fc2 W16A4 & W16A8
-    # "fc2_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-fc2": None,
-    # },
-    # "fc2_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-fc2": None,
-    # },
-
-    # # q W16A4 & W16A8
-    # "q_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-q": None,
-    # },
-    # "q_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-q": None,
-    # },
-
-    # # k W16A4 & W16A8
-    # "k_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-k": None,
-    # },
-    # "k_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-k": None,
-    # },
-
-    # # v W16A4 & W16A8
-    # "v_W16A4": {
-    #     "wbits": 16,
-    #     "abits": 4,
-    #     "aow-quant-act-v": None,
-    # },
-    # "v_W16A8": {
-    #     "wbits": 16,
-    #     "abits": 8,
-    #     "aow-quant-act-v": None,
-    # },
-
-    ###############################################
-    # Modifications
-    ###############################################
-
-    # qkvproj: outlier
-    "qkvproj_W16A4_ol1p128": {
+def add_baseline_experiment_configs():
+    """
+    Baseline experiments
+    """
+    CONFIG_DICT['W16A16'] = {
         "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-qkvproj": None,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
+        "abits": 16,
+    }
 
-    # fc1: outlier
-    "fc1_W16A4_ol1p128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc1": None,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+        'oproj',
+        'fc2',
+        'q',
+        'k',
+        'v',
+    ]
+    abits_list = [4, 8]
+    for layer_type, abits in product(layer_type_list, abits_list):
+        config_name = f"{layer_type}_W16A{abits}"
+        config = {
+            'wbits': 16,
+            'abits': abits,
+            f"aow-quant-act-{layer_type}": None,
+        }
+        CONFIG_DICT[config_name] = config
 
-    # fc2: reorder + groupwise + outlier
 
-    # groupwise
-    "fc2_W16A4_g128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "act-group-size": 128,
-    },
+def add_outlier_experiment_configs():
+    outlier_ratio_list = [
+        # 1 / 128,
+        1 / 64,
+        1 / 32,
+        1 / 16,
+    ]
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+        'oproj',
+        'fc2',
+    ] # ignore matmuls
+    for layer_type, outlier_ratio in product(layer_type_list, outlier_ratio_list):
+        ol_name = f"1p{int(1/outlier_ratio)}"
+        config_name = f"{layer_type}_W16A4_ol{ol_name}"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f"aow-quant-act-{layer_type}": None,
+            'act-outlier-ratio': outlier_ratio,
+        }
+        CONFIG_DICT[config_name] = config
 
-    # outlier
-    "fc2_W16A4_ol1p128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
 
-    # groupwise + outlier
-    "fc2_W16A4_g128_ol1p128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "act-group-size": 128,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
+def add_grouping_experiment_configs():
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+        'oproj',
+        'fc2',
+    ] # ignore matmuls
+    for layer_type in layer_type_list:
+        config_name = f"{layer_type}_W16A4_g128"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f"aow-quant-act-{layer_type}": None,
+            'act-group-size': 128,
+        }
+        CONFIG_DICT[config_name] = config
 
-    # reorder + groupwise
-    "fc2_W16A4_g128_r": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "act-group-size": 128,
-        "act-reorder": None,
-    },
+def add_all_experiment_configs():
+    """
+    All experiments
+    """
+    # add_baseline_experiment_configs()
+    add_outlier_experiment_configs()
+    add_grouping_experiment_configs()
 
-    # reorder + groupwise + outlier
-    "fc2_W16A4_g128_ol1p128_r": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "act-group-size": 128,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-        "act-reorder": None,
-    },
+    for config_name in CONFIG_DICT.keys():
+        print(config_name)
 
-    # oproj: groupwise + outlier
-
-    # groupwise
-    "oproj_W16A4_g128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-        "act-group-size": 128,
-    },
-
-    # outlier
-    "oproj_W16A4_ol1p128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
-
-    # groupwise + outlier
-    "oproj_W16A4_g128_ol1p128": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-        "act-group-size": 128,
-        "act-outlier-ratio": 0.0078125,  # 1 / 128
-    },
-    
-}
 
 def gen_single_experiment_script(
     model_name,
@@ -490,5 +385,5 @@ def gen_debugging_script(
 
     
 if __name__ == "__main__":
-    # gen_all_scripts(SMALL_MODEL_LIST + MEDIAM_MODEL_LIST)
+    add_all_experiment_configs()
     gen_all_scripts(MODEL_LIST)
