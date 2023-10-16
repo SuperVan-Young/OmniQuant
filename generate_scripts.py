@@ -7,7 +7,7 @@ from copy import deepcopy
 
 # parse args
 parser = argparse.ArgumentParser()
-parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], help="server type")
+parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], default='V100', help="server type")
 parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], type=str, help="model list")
 parser.add_argument("--no-large", action='store_true', help="exclude large models")
 
@@ -110,58 +110,109 @@ CONFIG_DICT = {
     ###############################################
 
     # FULL PRECISION
-    "W16A16": {
-        "wbits": 16,
-        "abits": 16,
-    },
+    # "W16A16": {
+    #     "wbits": 16,
+    #     "abits": 16,
+    # },
 
     # qkvproj W16A4 & W16A8
-    "qkvproj_W16A4": {
+    # "qkvproj_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-qkvproj": None,
+    # },
+    # "qkvproj_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-qkvproj": None,
+    # },
+    "qkvproj_W16A4_static": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-qkvproj": None,
+        "a_dynamic_method": 'none',
     },
-    "qkvproj_W16A8": {
+    "qkvproj_W16A8_static": {
         "wbits": 16,
         "abits": 8,
         "aow-quant-act-qkvproj": None,
+        "a_dynamic_method": 'none',
     },
 
+
     # fc1 W16A4 & W16A8
-    "fc1_W16A4": {
+    # "fc1_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-fc1": None,
+    # },
+    # "fc1_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-fc1": None,
+    # },
+    "fc1_W16A4_static": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc1": None,
+        "a_dynamic_method": 'none',
     },
-    "fc1_W16A8": {
+    "fc1_W16A8_static": {
         "wbits": 16,
         "abits": 8,
         "aow-quant-act-fc1": None,
+        "a_dynamic_method": 'none',
     },
 
     # oproj W16A4 & W16A8
-    "oproj_W16A4": {
+    # "oproj_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-oproj": None,
+    # },
+    # "oproj_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-oproj": None,
+    # },
+    "oproj_W16A4_static": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-oproj": None,
+        "a_dynamic_method": 'none',
     },
-    "oproj_W16A8": {
+    "oproj_W16A8_static": {
         "wbits": 16,
         "abits": 8,
         "aow-quant-act-oproj": None,
+        "a_dynamic_method": 'none',
     },
 
     # fc2 W16A4 & W16A8
+    # "fc2_W16A4": {
+    #     "wbits": 16,
+    #     "abits": 4,
+    #     "aow-quant-act-fc2": None,
+    # },
+    # "fc2_W16A8": {
+    #     "wbits": 16,
+    #     "abits": 8,
+    #     "aow-quant-act-fc2": None,
+    # },
     "fc2_W16A4": {
         "wbits": 16,
         "abits": 4,
         "aow-quant-act-fc2": None,
+        "a_dynamic_method": 'none',
     },
     "fc2_W16A8": {
         "wbits": 16,
         "abits": 8,
         "aow-quant-act-fc2": None,
+        "a_dynamic_method": 'none',
     },
+
+    #TODO: static quantization for q/k/v
 
     # q W16A4 & W16A8
     "q_W16A4": {
@@ -301,18 +352,27 @@ def gen_single_experiment_script(
     model_name,
     available_gpus,
     extra_configs: dict = {},
+    output_subdir = None,
 ) -> str:
     """
     Generate script for running a single experiment on one model.
     """
     assert "wbits" in extra_configs
     assert "abits" in extra_configs
+    
+    scripts = ""
 
-    scripts = f"""
+    if output_subdir is None:
+        output_dir = f"$OUTPUT_DIR/{model_name}"
+    else:
+        output_dir = f"$OUTPUT_DIR/{output_subdir}/{model_name}"
+        scripts += f"mkdir -p {output_dir}"
+
+    scripts += f"""
 CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
 --eval_ppl --epoch 0 --quant-method aowquant \\
 --model $MODEL_DIR/{model_name} \\
---output_dir $OUTPUT_DIR/{model_name} \\
+--output_dir {output_dir} \\
 """
     if len(available_gpus.split(",")) > 1:
         scripts += "--multigpu \\\n"
@@ -441,28 +501,27 @@ def gen_debugging_script(
         used_gpu = 0
 
         for config_name, configs in CONFIG_DICT.items():
-            if 'W16A8' in config_name or 'W16A16' in config_name:
-                continue
+            # if 'W16A8' in config_name or 'W16A16' in config_name:
+            #     continue
             if len(config_name.split('_')) <= 2:
                 continue  # baseline experiments
 
             # use few eval dataset for debugging
             configs = deepcopy(configs)
             configs['eval-ppl-dataset'] = 'wikitext2'
-            # configs['debug'] = None
+            # configs['debug'] = None  # only quantize one layer for debugging
 
             if used_gpu + num_gpus > len(GPU_LIST):
                 used_gpu = 0
                 f.write("wait\n\n")
             available_gpus = ",".join(GPU_LIST[used_gpu:used_gpu+num_gpus])
-            f.write(f"# {config_name}")
+            f.write(f"\n# {config_name}\n")
             f.write(gen_single_experiment_script(
                 model_name,
                 available_gpus,
                 configs,
+                output_subdir=config_name
             ))
-            # separate logging file
-            f.write("sleep 2\n\n") 
             # prevent OOM by manually wait
             used_gpu += num_gpus
 
