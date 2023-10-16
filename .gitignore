@@ -26,6 +26,7 @@ log.csv
 scripts/aow*
 output/
 output_demo/
+output_tryout/
 output_static_demo/
 results/
 .vscode
