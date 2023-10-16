@@ -287,15 +287,24 @@ def aowquant(
                     if args.act_group_size:
                         raise NotImplementedError
                     else:
-                        xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
-                        xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype).clamp(1e-5)
-                        xrange = torch.max((xmax - xmin) * outlier_mask)
+                        xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype)
+                        xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype)
+                        xmax = xmax * ~outlier_mask
+                        xmin = xmin * ~outlier_mask
+                        logger.info(f"Normal xmax: {torch.max(xmax).item()}")
+                        logger.info(f"Normal xmin: {torch.min(xmin).item()}")
+                        xrange = torch.max(xmax - xmin)
                         scale = xrange / (2 ** args.abits - 1)
                         scale = scale.clamp(min=1e-5, max=1e4)
                         round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
+                        round_zero_point = torch.index_select(round_zero_point, dim=-1, index=reorder_index)
+                        logger.info(f"Scale: {scale.item()}")
+                        # logger.info(f"Round zero point: {round_zero_point}")
 
-                    module.act_quantizer.scale = scale
-                    module.act_quantizer.round_zero_point = round_zero_point
+                    del module.act_quantizer.scale
+                    del module.act_quantizer.round_zero_point
+                    module.act_quantizer.register_buffer('scale', scale)
+                    module.act_quantizer.register_buffer('round_zero_point', round_zero_point)
 
                 # We first reorder, then apply outlier mask, after that grouping
                 module.act_quantizer.register_buffer('reorder_index', reorder_index)
