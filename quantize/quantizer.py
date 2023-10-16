@@ -167,6 +167,9 @@ class UniformAffineQuantizer(nn.Module):
         has_nan = torch.isnan(x_dequant).any()
         if has_nan:
             raise RuntimeError("NaN detected in quantized tensor.")
+        has_inf = torch.isinf(x_dequant).any()
+        if has_inf:
+            raise RuntimeError("Inf detected in quantized tensor.")
         return x_dequant
 
     def group_tensor(self, x):
