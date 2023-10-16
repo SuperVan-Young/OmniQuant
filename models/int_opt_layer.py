@@ -94,6 +94,7 @@ class QuantOPTAttention(nn.Module):
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
+        query_states = self._shape(query_states, tgt_len, bsz)
         query_states = self.qkt_matmul.quant_x1(query_states)
 
         # get key, value proj
@@ -104,30 +105,30 @@ class QuantOPTAttention(nn.Module):
         elif is_cross_attention:
             # cross_attentions
             key_states = self.k_proj(key_value_states)
-            key_states = self.qkt_matmul.quant_x2(key_states)
             key_states = self._shape(key_states, -1, bsz)
+            key_states = self.qkt_matmul.quant_x2(key_states)
             value_states = self._shape(self.v_proj(key_value_states), -1, bsz)
         elif past_key_value is not None:
             # reuse k, v, self_attention
             # bsz, seq_len, self.num_heads, self.head_dim -> bsz, self.num_heads, seq_len, self.head_dim
             key_states = self.k_proj(hidden_states)
-            key_states = self.qkt_matmul.quant_x2(key_states)
             key_states = self._shape(key_states, -1, bsz)
+            key_states = self.qkt_matmul.quant_x2(key_states)
 
             value_states = self.v_proj(hidden_states)
-            value_states = self.pv_matmul.quant_x2(value_states)
             value_states = self._shape(value_states, -1, bsz)
+            value_states = self.pv_matmul.quant_x2(value_states)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:
             # self_attention
             key_states = self.k_proj(hidden_states)
-            key_states = self.qkt_matmul.quant_x2(key_states)
             key_states = self._shape(key_states, -1, bsz)
+            key_states = self.qkt_matmul.quant_x2(key_states)
 
             value_states = self.v_proj(hidden_states)
-            value_states = self.pv_matmul.quant_x2(value_states)
             value_states = self._shape(value_states, -1, bsz)
+            value_states = self.pv_matmul.quant_x2(value_states)
         if self.is_decoder:
             past_key_value = (key_states, value_states)
 
@@ -135,7 +136,7 @@ class QuantOPTAttention(nn.Module):
         # query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
         # key_states = key_states.view(*proj_shape)
         # value_states = value_states.view(*proj_shape)
-        query_states = self._shape(query_states, tgt_len, bsz)
+        # query_states = self._shape(query_states, tgt_len, bsz)
 
         # src_len = key_states.size(1)
         # attn_weights = self.qkt_matmul(query_states, key_states.transpose(1, 2))

@@ -88,6 +88,25 @@ def get_reorder_channel_index(
 
     return reorder_indices
 
+def get_scale_zero_point(xmin, xmax, abits, is_attention=False):
+    xrange = torch.max(xmax - xmin, dim=-1, keepdim=True)[0]
+    scale = xrange / (2 ** abits - 1)
+    scale = scale.clamp(min=1e-5, max=1e4)
+    round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
+
+    if is_attention:
+        scale = scale.reshape(1, -1, 1, 1)  # bsz, head, seq, hid
+        num_attention_head = scale.shape[1]
+        round_zero_point = round_zero_point.reshape(1, num_attention_head, 1, -1)
+
+    return scale, round_zero_point
+
+def set_quantizer_scale_round_zero_point(quantizer, scale, round_zero_point):
+    del quantizer.scale
+    del quantizer.round_zero_point
+    quantizer.register_buffer('scale', scale)
+    quantizer.register_buffer('round_zero_point', round_zero_point)
+
 
 def aowquant(
     lm,
@@ -282,20 +301,18 @@ def aowquant(
                     mean_act_scale_normal = torch.mean(act_scale_normal).item()
                     logger.info(f"outlier mean vs. normal mean: {mean_act_scale_outlier} vs. {mean_act_scale_normal}")
 
-                # set scale and round zero point
+                # set scale and round zero point of normal values
                 if args.a_dynamic_method == 'none':
+                    xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype) * ~outlier_mask
+                    xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype) * ~outlier_mask
                     if args.act_group_size:
-                        raise NotImplementedError
-                    else:
-                        xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
-                        xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype).clamp(1e-5)
-                        xrange = torch.max((xmax - xmin) * outlier_mask)
-                        scale = xrange / (2 ** args.abits - 1)
-                        scale = scale.clamp(min=1e-5, max=1e4)
-                        round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
-
-                    module.act_quantizer.scale = scale
-                    module.act_quantizer.round_zero_point = round_zero_point
+                        # we simply assume grouping has no deficiency!
+                        xmax = xmax.view(-1, args.act_group_size)
+                        xmin = xmin.view(-1, args.act_group_size)
+                    scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits)
+                    round_zero_point = torch.index_select(round_zero_point, dim=-1, index=reorder_index)
+                    logger.info(f"Scale: {scale.item()}")
+                    set_quantizer_scale_round_zero_point(module.act_quantizer, scale, round_zero_point)
 
                 # We first reorder, then apply outlier mask, after that grouping
                 module.act_quantizer.register_buffer('reorder_index', reorder_index)
@@ -303,17 +320,50 @@ def aowquant(
                 module.act_quantizer.register_buffer('outlier_mask', final_outlier_mask)
 
             elif isinstance(module, QuantMatMul):
+                all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
+                
+                def get_xmin_xmax(tensor_name):
+                    xmax = all_stats[tensor_name]['max'].to(device=dev, dtype=a_dtype)
+                    xmin = all_stats[tensor_name]['min'].to(device=dev, dtype=a_dtype)
+                    # we only allow per head quantization
+                    attention_head_size = lm.model.config.hidden_size // lm.model.config.num_attention_heads
+                    xmax = xmax.view(-1, attention_head_size)
+                    xmin = xmin.view(-1, attention_head_size)
+                    return xmin, xmax
+
                 if "qkt_matmul" in name:
                     module.use_x1_quant = getattr(args, "aow_quant_act_q")
                     module.use_x2_quant = getattr(args, "aow_quant_act_k")
+
                     if args.aow_quant_act_q:
                         logger.info(f"Quantize activation (q) of {name}")
+
+                        # prepare static scale and zero point
+                        if args.a_dynamic_method == 'none':
+                            xmin, xmax = get_xmin_xmax('q')
+                            scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits, is_attention=True)
+                            set_quantizer_scale_round_zero_point(module.x1_quantizer, scale, round_zero_point)
+
                     if args.aow_quant_act_k:
                         logger.info(f"Quantize activation (k) of {name}")
+
+                        # prepare static scale and zero point
+                        if args.a_dynamic_method == 'none':
+                            xmin, xmax = get_xmin_xmax('k')
+                            scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits, is_attention=True)
+                            set_quantizer_scale_round_zero_point(module.x2_quantizer, scale, round_zero_point)
+
                 elif "pv_matmul" in name:
                     module.use_x2_quant = getattr(args, "aow_quant_act_v")
+
                     if args.aow_quant_act_v:
                         logger.info(f"Quantize activation (v) of {name}")
+
+                        # prepare static scale and zero point
+                        if args.a_dynamic_method == 'none':
+                            xmin, xmax = get_xmin_xmax('v')
+                            scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits, is_attention=True)
+                            set_quantizer_scale_round_zero_point(module.x2_quantizer, scale, round_zero_point)
 
         # qlayer.register_scales_and_zeros()
         layers[i] = qlayer.to("cpu")

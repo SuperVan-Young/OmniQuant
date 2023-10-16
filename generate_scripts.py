@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--server", type=str, choices=['V100', 'A6000', 'A100'], default='V100', help="server type")
 parser.add_argument("--model_list", choices=['demo', 'small', 'mediam', 'large', 'all', 'opt_all', 'llama_all'], default='demo', type=str, help="model list")
 parser.add_argument("--no-large", action='store_true', help="exclude large models")
+parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token", 'none'])
 
 args = parser.parse_args()
 
@@ -33,6 +34,7 @@ else:
 DEMO_MODEL_LIST = [
     # Now that we don't modify TransformerLayer, we can use one type of CasualLM
     "opt-6.7b",
+    "llama-7b-meta",
 ]
 
 SMALL_MODEL_LIST = [
@@ -109,13 +111,13 @@ CONFIG_DICT = {
     # Baseline Experiments
     ###############################################
 
-    # FULL PRECISION
+    # # FULL PRECISION
     # "W16A16": {
     #     "wbits": 16,
     #     "abits": 16,
     # },
 
-    # qkvproj W16A4 & W16A8
+    # # qkvproj W16A4 & W16A8
     # "qkvproj_W16A4": {
     #     "wbits": 16,
     #     "abits": 4,
@@ -126,21 +128,9 @@ CONFIG_DICT = {
     #     "abits": 8,
     #     "aow-quant-act-qkvproj": None,
     # },
-    "qkvproj_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-qkvproj": None,
-        "a_dynamic_method": 'none',
-    },
-    "qkvproj_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-qkvproj": None,
-        "a_dynamic_method": 'none',
-    },
 
 
-    # fc1 W16A4 & W16A8
+    # # fc1 W16A4 & W16A8
     # "fc1_W16A4": {
     #     "wbits": 16,
     #     "abits": 4,
@@ -151,20 +141,8 @@ CONFIG_DICT = {
     #     "abits": 8,
     #     "aow-quant-act-fc1": None,
     # },
-    "fc1_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc1": None,
-        "a_dynamic_method": 'none',
-    },
-    "fc1_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc1": None,
-        "a_dynamic_method": 'none',
-    },
 
-    # oproj W16A4 & W16A8
+    # # oproj W16A4 & W16A8
     # "oproj_W16A4": {
     #     "wbits": 16,
     #     "abits": 4,
@@ -175,20 +153,8 @@ CONFIG_DICT = {
     #     "abits": 8,
     #     "aow-quant-act-oproj": None,
     # },
-    "oproj_W16A4_static": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-oproj": None,
-        "a_dynamic_method": 'none',
-    },
-    "oproj_W16A8_static": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-oproj": None,
-        "a_dynamic_method": 'none',
-    },
 
-    # fc2 W16A4 & W16A8
+    # # fc2 W16A4 & W16A8
     # "fc2_W16A4": {
     #     "wbits": 16,
     #     "abits": 4,
@@ -199,20 +165,6 @@ CONFIG_DICT = {
     #     "abits": 8,
     #     "aow-quant-act-fc2": None,
     # },
-    "fc2_W16A4": {
-        "wbits": 16,
-        "abits": 4,
-        "aow-quant-act-fc2": None,
-        "a_dynamic_method": 'none',
-    },
-    "fc2_W16A8": {
-        "wbits": 16,
-        "abits": 8,
-        "aow-quant-act-fc2": None,
-        "a_dynamic_method": 'none',
-    },
-
-    #TODO: static quantization for q/k/v
 
     # q W16A4 & W16A8
     "q_W16A4": {
@@ -343,9 +295,6 @@ CONFIG_DICT = {
         "act-outlier-ratio": 0.0078125,  # 1 / 128
     },
     
-    # q/k/v: (already groupwise) + outlier
-    #TODO: add scripts
-
 }
 
 def gen_single_experiment_script(
@@ -365,7 +314,7 @@ def gen_single_experiment_script(
     if output_subdir is None:
         output_dir = f"$OUTPUT_DIR/{model_name}"
     else:
-        output_dir = f"$OUTPUT_DIR/{output_subdir}/{model_name}"
+        output_dir = f"$OUTPUT_DIR/{output_subdir}"
         scripts += f"mkdir -p {output_dir}"
 
     scripts += f"""
@@ -376,6 +325,8 @@ CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
 """
     if len(available_gpus.split(",")) > 1:
         scripts += "--multigpu \\\n"
+    if args.a_dynamic_method == "none":
+        scripts += "--a_dynamic_method none \\\n"
     for config_name, config_val in extra_configs.items():
         if config_val is None:
             scripts += f"--{config_name} \\\n"
@@ -473,6 +424,15 @@ def gen_all_scripts(
         for config_name in CONFIG_DICT.keys():
             f.write(f"bash {script_dir}/{config_name}.sh\n")
 
+    # debugging scripts and entry
+    for model in DEMO_MODEL_LIST:
+        gen_debugging_script(model)
+
+    with open(os.path.join(script_dir, 'run_debugging.sh'), "w") as f:
+        f.write("#!/bin/bash\n\n")
+        for model in DEMO_MODEL_LIST:
+            f.write(f"bash {script_dir}/debugging_{model}.sh\n")
+
 def gen_debugging_script(
     model_name = 'opt-6.7b',
 ):
@@ -493,15 +453,19 @@ def gen_debugging_script(
         f.write("# This script is exptected to be run on server %s.\n\n" % EXPERIMENT_SERVER)
 
         f.write(f"MODEL_DIR={MODEL_DIR}\n")
-        f.write(f"OUTPUT_DIR=./output/debugging_{model_name}\n\n")
+
+        if args.a_dynamic_method == 'none':
+            f.write(f"OUTPUT_DIR=./output_static_demo\n\n")
+        else:
+            f.write(f"OUTPUT_DIR=./output_demo\n\n")
 
         used_gpu = 0
 
         for config_name, configs in CONFIG_DICT.items():
             # if 'W16A8' in config_name or 'W16A16' in config_name:
             #     continue
-            if len(config_name.split('_')) <= 2:
-                continue  # baseline experiments
+            # if len(config_name.split('_')) <= 2:
+            #     continue  # baseline experiments
 
             # use few eval dataset for debugging
             configs = deepcopy(configs)
@@ -517,7 +481,7 @@ def gen_debugging_script(
                 model_name,
                 available_gpus,
                 configs,
-                output_subdir=config_name
+                output_subdir=f"{config_name}/{model_name}"
             ))
             # prevent OOM by manually wait
             used_gpu += num_gpus
@@ -528,5 +492,3 @@ def gen_debugging_script(
 if __name__ == "__main__":
     # gen_all_scripts(SMALL_MODEL_LIST + MEDIAM_MODEL_LIST)
     gen_all_scripts(MODEL_LIST)
-    gen_debugging_script('opt-6.7b')
-    gen_debugging_script('llama-7b-meta')
