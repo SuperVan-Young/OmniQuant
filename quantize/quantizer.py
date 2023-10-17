@@ -166,6 +166,9 @@ class UniformAffineQuantizer(nn.Module):
 
         has_nan = torch.isnan(x_dequant).any()
         if has_nan:
+            print(f"min scale: {self.scale.min()}, max scale: {self.scale.max()}")
+            print(f"min round zero point: {self.round_zero_point.min()}, max round zero point: {self.round_zero_point.max()}")
+            print(f"num Nan: {torch.isnan(x_dequant).sum()}")
             raise RuntimeError("NaN detected in quantized tensor.")
         has_inf = torch.isinf(x_dequant).any()
         if has_inf:

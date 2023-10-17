@@ -52,7 +52,7 @@ def get_outlier_channel_index(
         _, outlier_channels = torch.topk(act_scale_grouped, num_outlier_channels_per_group, dim=-1)
 
         # flatten outlier channels
-        onehot = torch.nn.functional.one_hot(outlier_channels, num_classes=group_size).view(-1).bool()
+        onehot = torch.nn.functional.one_hot(outlier_channels, num_classes=group_size).sum(-2).view(-1).bool()
         if deficiency:
             onehot = onehot[:-deficiency]
         outlier_channels = torch.masked_select(torch.arange(act_scale.shape[0], device=act_scale.device), onehot)
@@ -90,8 +90,14 @@ def get_reorder_channel_index(
 
 def get_scale_zero_point(xmin, xmax, abits, is_attention=False):
     xrange = torch.max(xmax - xmin, dim=-1, keepdim=True)[0]
+    # check xrange has zero?
+    # if (xrange == 0).any():
+    #     print(f"xrange has zero: {(xrange == 0).sum()}")
+    #     print(xmax.shape)
+    #     print(torch.max(xmax, dim=-1)[0])
+    #     raise RuntimeError
     scale = xrange / (2 ** abits - 1)
-    scale = scale.clamp(min=1e-5, max=1e4)
+    scale = scale.clamp(min=1e-3, max=1e4)
     round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
 
     if is_attention:
@@ -195,6 +201,9 @@ def aowquant(
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
                 act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
 
+                # not using act reordering for oproj
+                use_act_reorder = args.act_reorder and (linear_category != 'oproj')
+
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
                     num_outlier_per_group = math.ceil(args.act_group_size * args.act_outlier_ratio)
@@ -209,7 +218,7 @@ def aowquant(
                         act_scale,
                         args.act_outlier_ratio,
                         # if use reordering, grouping is ignored
-                        group_size = None if args.act_reorder else args.act_group_size,
+                        group_size = None if use_act_reorder else args.act_group_size,
                         outlier_metric = args.outlier_metric,
                         logger = logger,
                     )
@@ -223,7 +232,7 @@ def aowquant(
                 outlier_mask = outlier_mask.to(device=dev)
 
                 # select normal channels (probably reordered)
-                if args.act_reorder:
+                if use_act_reorder:
                     # reorder normal channels
                     normal_index = get_reorder_channel_index(
                         act_scale,
@@ -281,6 +290,12 @@ def aowquant(
                 # check reorder index is a valid permuatation
                 check_reorder_index = torch.nn.functional.one_hot(reorder_index, num_classes=act_scale.shape[0]).int().sum(dim=0)
                 assert torch.all(check_reorder_index == 1)
+
+                # # check if reordered arange matches both indexes
+                # check_outlier_index = torch.masked_select(reorder_index, final_outlier_mask)
+                # # check every element in check outlier index is in outlier index
+                # for ol in check_outlier_index:
+                #     assert ol in outlier_index
 
                 # generate inverted reorder index
                 _, reorder_index_inv = torch.sort(reorder_index, descending=False)
