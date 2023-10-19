@@ -47,6 +47,8 @@ def get_outlier_experiment_configs(**kwargs):
         1 / 64,
         1 / 32,
         1 / 16,
+        1 / 8,
+        1 / 4,
     ]
     layer_type_list = [
         'qkvproj',
@@ -61,7 +63,7 @@ def get_outlier_experiment_configs(**kwargs):
             'wbits': 16,
             'abits': 4,
             f"aow_quant_act_{layer_type}": None,
-            'act_outlier-ratio': outlier_ratio,
+            'act_outlier_ratio': outlier_ratio,
         }
         config.update(kwargs)
         config_dict[config_name] = config
@@ -84,7 +86,7 @@ def get_grouping_experiment_configs(**kwargs):
             'wbits': 16,
             'abits': 4,
             f"aow_quant_act_{layer_type}": None,
-            'act_group-size': 128,
+            'act_group_size': 128,
         }
         config.update(kwargs)
         config_dict[config_name] = config

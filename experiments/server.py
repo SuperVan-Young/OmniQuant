@@ -31,6 +31,9 @@ class ServerConfig():
             gpu_ids = self.gpu_list[self._used_gpu:self._used_gpu + num_gpu]
             self._used_gpu += num_gpu
             return gpu_ids, False
+        
+    def reset_gpu_ids(self):
+        self._used_gpu = 0
     
 V100_SERVER_CONFIG = {
     'gpu_list': [2, 3, 4, 5, 6, 7],

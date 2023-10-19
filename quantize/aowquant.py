@@ -202,7 +202,8 @@ def aowquant(
                 logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
-                act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                # act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                act_scale = (all_stats['input']['max'] - all_stats['input']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
 
                 # not using act reordering for oproj
                 use_act_reorder = args.act_reorder and (linear_category != 'oproj')

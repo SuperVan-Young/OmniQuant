@@ -4,8 +4,11 @@ def main():
     lookup_results(
         output_path='./output/efficient_grouping',
         save_path='./results/efficient_grouping.csv',
-        second_level_type='model',
-        first_level_type='experiment',
+    )
+
+    lookup_results(
+        output_path='./output/efficient_grouping_ol1p64',
+        save_path='./results/efficient_grouping_ol1p64.csv',
     )
 
 if __name__ == '__main__':
