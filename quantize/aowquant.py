@@ -241,7 +241,7 @@ def aowquant(
                             act_stats,
                             args.act_outlier_ratio,
                             args.act_group_size,
-                        )
+                        ).to(dev)
                     else:
                         outlier_index = get_outlier_channel_index(
                             act_scale,
