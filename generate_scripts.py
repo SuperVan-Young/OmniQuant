@@ -37,5 +37,17 @@ def main():
         top_output_dir='./output/efficient_grouping/'), 
         './scripts/demo/efficient_grouping.sh')
     
+    fc2_tuning_configs = get_outlier_experiment_configs(
+        act_reorder=None,
+        act_group_size=128,
+        **extra_experiment_configs)
+    fc2_tuning_configs = {k: v for k, v in fc2_tuning_configs.items() if "aow-quant-act-fc2" in v.keys()}
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('tiny'),
+        server_config=server,
+        experiment_config_dict=fc2_tuning_configs,
+        top_output_dir='./output/fc2_tuning/'), 
+        './scripts/demo/fc2_tuning.sh')
+    
 if __name__ == "__main__":
     main()

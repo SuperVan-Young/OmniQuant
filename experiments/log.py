@@ -73,7 +73,7 @@ def lookup_results(
     df = parse_second_level(output_path, 
                             second_level_type=second_level_type, 
                             first_level_type=first_level_type)
-    df = df.set_index(['experiment', 'model'])
+    df = df.set_index(['model', 'experiment'])
     df = df.sort_index()
     if save_path:
         df.to_csv(save_path)

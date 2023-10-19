@@ -111,9 +111,10 @@ def get_efficient_grouping_experiment_configs(**kwargs):
             'abits': 4,
             f'aow-quant-act-{layer_type}': None,
             'act-group-size': 128,
+            'act-reorder': None,
         }
         if use_efficient_accumulation:
-            config['use-efficient-accumulation'] = None
+            config['act-group-efficient-accumulation'] = None
         config.update(kwargs)
         config_dict[config_name] = config
 
