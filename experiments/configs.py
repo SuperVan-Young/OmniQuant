@@ -6,7 +6,7 @@ def get_outlier_name(outlier_ratio):
     ol_name = f"1p{int(1/outlier_ratio)}"
     return ol_name
 
-def get_baseline_experiment_configs():
+def get_baseline_experiment_configs(**kwargs):
     """
     Baseline experiments
     """
@@ -34,11 +34,12 @@ def get_baseline_experiment_configs():
             'abits': abits,
             f"aow-quant-act-{layer_type}": None,
         }
+        config.update(kwargs)
         config_dict[config_name] = config
 
     return config_dict
 
-def add_outlier_experiment_configs():
+def get_outlier_experiment_configs(**kwargs):
     config_dict = {}
 
     outlier_ratio_list = [
@@ -62,12 +63,13 @@ def add_outlier_experiment_configs():
             f"aow-quant-act-{layer_type}": None,
             'act-outlier-ratio': outlier_ratio,
         }
+        config.update(kwargs)
         config_dict[config_name] = config
 
     return config_dict
 
 
-def add_grouping_experiment_configs():
+def get_grouping_experiment_configs(**kwargs):
     config_dict = {}
     
     layer_type_list = [
@@ -84,6 +86,27 @@ def add_grouping_experiment_configs():
             f"aow-quant-act-{layer_type}": None,
             'act-group-size': 128,
         }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict
+
+
+def get_fc2_grouping_experiment_configs(**kwargs):
+    config_dict = {}
+
+    use_efficient_accumulation_list = [True, False]
+    for use_efficient_accumulation in use_efficient_accumulation_list:
+        config_name = f"fc2_W16A4_g128"
+        config_name += "_ea" if use_efficient_accumulation else ""
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            'aow-quant-act-fc2': None,
+            'act-group-size': 128,
+            'act-group-efficient-accumulation': use_efficient_accumulation,
+        }
+        config.update(kwargs)
         config_dict[config_name] = config
 
     return config_dict
