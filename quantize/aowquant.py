@@ -15,6 +15,7 @@ import utils
 import os
 import pdb
 import gc
+from copy import deepcopy
 
 def get_outlier_channel_index(
     act_scale,
@@ -201,6 +202,13 @@ def aowquant(
         layer_name_prefix = "model.transformer.h"
     else:
         raise ValueError("Only support for opt/llama/Llama-2/falcon now")
+    
+    # unified postlayernorm outlier index
+    unified_postlayernorm_outlier_index = get_unified_postlayernorm_outlier_index(
+        act_stats,
+        args.act_outlier_ratio,
+        args.act_group_size,
+    ).to(dev)
 
     # quantize every layer, and set high precision activation channels
     for i in range(len(layers)):
@@ -230,7 +238,12 @@ def aowquant(
                 act_scale = (all_stats['input']['max'] - all_stats['input']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
 
                 # not using act reordering for oproj
-                use_act_reorder = args.act_reorder and (linear_category != 'oproj')
+                if linear_category == 'oproj':
+                    use_act_reorder = False
+                elif linear_category == 'fc2':
+                    use_act_reorder = args.act_reorder
+                else:
+                    use_act_reorder = not args.act_unified_postlayernorm_outlier
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
@@ -242,12 +255,8 @@ def aowquant(
 
                 # select outlier channels， and generate outlier mask before reordering
                 if args.act_outlier_ratio > 0:
-                    if args.act_unified_postlayernorm_outlier:
-                        outlier_index = get_unified_postlayernorm_outlier_index(
-                            act_stats,
-                            args.act_outlier_ratio,
-                            args.act_group_size,
-                        ).to(dev)
+                    if args.act_unified_postlayernorm_outlier and linear_category in ('fc1', 'qkvproj'):
+                        outlier_index = deepcopy(unified_postlayernorm_outlier_index)
                     else:
                         outlier_index = get_outlier_channel_index(
                             act_scale,
