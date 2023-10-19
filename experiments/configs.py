@@ -206,6 +206,7 @@ def get_full_model_experiment_configs(**kwargs):
             "aow_quant_act_v": None,
             'act_outlier_ratio': outlier_ratio,
             'act_unified_postlayernorm_outlier': None,
+            'a_dynamic_method': 'per_token',
         }
         config.update(kwargs)
         config_dict[config_name] = config

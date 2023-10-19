@@ -66,9 +66,9 @@ def main():
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
         server_config=server,
-        experiment_config_dict=get_outlier_bits_experiment_configs(**extra_experiment_configs),
-        top_output_dir='./output/outlier_bits/'), 
-        './scripts/demo/outlier_bits.sh')
+        experiment_config_dict=get_full_model_experiment_configs(),
+        top_output_dir='./output/full_model/'), 
+        './scripts/demo/full_model.sh')
     
 if __name__ == "__main__":
     main()
