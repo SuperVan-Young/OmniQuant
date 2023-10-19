@@ -1,15 +1,12 @@
 from experiments.log import lookup_results
+import os
 
 def main():
-    lookup_results(
-        output_path='./output/efficient_grouping',
-        save_path='./results/efficient_grouping.csv',
-    )
-
-    lookup_results(
-        output_path='./output/efficient_grouping_ol1p64',
-        save_path='./results/efficient_grouping_ol1p64.csv',
-    )
+    for exp_group_name in os.listdir('./output'):
+        lookup_results(
+            output_path = os.path.join('./output', exp_group_name),
+            save_path = os.path.join('./results', f"{exp_group_name}.csv")
+        )
 
 if __name__ == '__main__':
     main()
