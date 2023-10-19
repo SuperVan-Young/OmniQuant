@@ -240,10 +240,13 @@ def aowquant(
                 # not using act reordering for oproj
                 if linear_category == 'oproj':
                     use_act_reorder = False
+                    select_outlier_within_group = True
                 elif linear_category == 'fc2':
                     use_act_reorder = args.act_reorder
+                    select_outlier_within_group = False
                 else:
                     use_act_reorder = not args.act_unified_postlayernorm_outlier
+                    select_outlier_within_group = False
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
@@ -262,7 +265,7 @@ def aowquant(
                             act_scale,
                             args.act_outlier_ratio,
                             # if use reordering, grouping is ignored
-                            group_size = None if use_act_reorder else args.act_group_size,
+                            group_size = None if select_outlier_within_group else 128,  # we hardcode this for convenience
                             outlier_metric = args.outlier_metric,
                             logger = logger,
                         )

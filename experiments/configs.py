@@ -178,3 +178,36 @@ def get_outlier_bits_experiment_configs(**kwargs):
         config_dict[config_name] = config
 
     return config_dict
+
+def get_full_model_experiment_configs(**kwargs):
+    """
+    By default use dynamic quantization
+    """
+    config_dict = {}
+
+    outlier_ratio_list = [
+        1 / 128,
+        1 / 64,
+        1 / 32,
+    ]
+    wbits_list = [4, 16]
+    for wbits, outlier_ratio in product(wbits_list, outlier_ratio_list):
+        ol_name = get_outlier_name(outlier_ratio)
+        config_name = f"all_W{wbits}A4_ol{ol_name}"
+        config = {
+            'wbits': wbits,
+            'abits': 4,
+            "aow_quant_act_qkvproj": None,
+            "aow_quant_act_oproj": None,
+            "aow_quant_act_fc1": None,
+            "aow_quant_act_fc2": None,
+            "aow_quant_act_q": None,
+            "aow_quant_act_k": None,
+            "aow_quant_act_v": None,
+            'act_outlier_ratio': outlier_ratio,
+            'act_unified_postlayernorm_outlier': None,
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict
