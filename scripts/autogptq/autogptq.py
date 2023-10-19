@@ -13,7 +13,8 @@ parser.add_argument("--group_size", type=int, default=-1)
 args = parser.parse_args()
 
 pretrained_model_dir = f"/home/xuechenhao/hugginface/{args.model}"
-quantized_model_dir = f"/home/xuechenhao/hugginface/{args.model}-4bit"
+# quantized_model_dir = f"/home/xuechenhao/hugginface/{args.model}-4bit"
+quantized_model_dir = f"/datasets/gptq/hugginface/{args.model}-4bit"
 suffix = f"-{args.group_size}g" if args.group_size > 0 else ""
 quantized_model_dir += suffix
 
