@@ -10,14 +10,14 @@ class ServerConfig():
         
         self._used_gpu = 0
 
-    def _allocate_num_gpu(self, model_name) -> int:
+    def _allocate_num_gpu(self, model_name):
         weight_size_in_GB = float(model_name.split("-")[1].replace("b", ""))
         required_size_in_GB = weight_size_in_GB * 2.5
         num_gpu = math.ceil(required_size_in_GB / self.gpu_memory)
         assert num_gpu <= len(self.gpu_list), "not enough gpu"
         return num_gpu
     
-    def allocate_gpu_ids(self, model_name) -> tuple(list, bool):
+    def allocate_gpu_ids(self, model_name):
         """
         Allocate gpu ids for model, return (gpu_ids, is_full)
         """
@@ -57,13 +57,13 @@ A6000_SERVER_CONFIG = {
 }
 
 def get_server_config(server_name):
-    if server_name == "v100":
+    if server_name == "V100":
         return ServerConfig(**V100_SERVER_CONFIG)
-    elif server_name == "a100":
+    elif server_name == "A100":
         return ServerConfig(**A100_SERVER_CONFIG)
-    elif server_name == "v100_full":
+    elif server_name == "V100_full":
         return ServerConfig(**V100_FULL_SERVER_CONFIG)
-    elif server_name == "a6000":
+    elif server_name == "A6000":
         return ServerConfig(**A6000_SERVER_CONFIG)
     else:
         raise ValueError("server name not supported")

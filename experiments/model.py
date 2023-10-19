@@ -59,4 +59,4 @@ def get_model_list(model_list_name):
     elif model_list_name == "llama_all":
         return LLAMA_ALL_MODEL_LIST
     else:
-        raise ValueError("model list name not supported")
+        raise ValueError(f"model list name not supported: {model_list_name}")

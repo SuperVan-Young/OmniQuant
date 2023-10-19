@@ -92,20 +92,28 @@ def get_grouping_experiment_configs(**kwargs):
     return config_dict
 
 
-def get_fc2_grouping_experiment_configs(**kwargs):
+def get_efficient_grouping_experiment_configs(**kwargs):
     config_dict = {}
 
+    layer_type_list = [
+        'oproj',
+        'fc2',
+    ]
     use_efficient_accumulation_list = [True, False]
-    for use_efficient_accumulation in use_efficient_accumulation_list:
-        config_name = f"fc2_W16A4_g128"
+    for layer_type, use_efficient_accumulation in product(
+        layer_type_list,
+        use_efficient_accumulation_list
+        ):
+        config_name = f"{layer_type}_W16A4_g128"
         config_name += "_ea" if use_efficient_accumulation else ""
         config = {
             'wbits': 16,
             'abits': 4,
-            'aow-quant-act-fc2': None,
+            f'aow-quant-act-{layer_type}': None,
             'act-group-size': 128,
-            'act-group-efficient-accumulation': use_efficient_accumulation,
         }
+        if use_efficient_accumulation:
+            config['use-efficient-accumulation'] = None
         config.update(kwargs)
         config_dict[config_name] = config
 
