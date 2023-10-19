@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from quantize.quantizer import UniformAffineQuantizer
+from copy import deepcopy
 
 
 
 
 
-
-class QuantLinear(nn.Module):
+class QuantLinearOld(nn.Module):
     """
     Quantized Module that can perform quantized convolution or normal convolution.
     To activate quantization, please use set_quant_state function.
@@ -66,4 +66,36 @@ class QuantLinear(nn.Module):
 
     def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         self.use_weight_quant = weight_quant
+        self.use_act_quant = act_quant
+
+
+class QuantLinear(nn.Module):
+    """
+    A simplifed quant linear to accomodate AutoGPTQ weight quantization.
+    We only support activation quantizer here
+    """
+    def __init__(
+        self,
+        org_module: nn.Linear,
+        weight_quant_params: dict = {},
+        act_quant_params: dict = {},
+        disable_input_quant=False,
+    ):
+        super().__init__()
+        self.org_module = org_module
+        self.weight = self.org_module.weight
+        self.bias = self.org_module.bias
+        self.in_features = self.org_module.in_features
+        self.out_features = self.org_module.out_features
+
+        self.use_act_quant = False
+        self.act_quantizer = UniformAffineQuantizer(**act_quant_params)
+
+    def forward(self, input: torch.Tensor):
+        if self.use_act_quant:
+            input = self.act_quantizer(input)
+        out = self.org_module(input)
+        return out
+    
+    def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         self.use_act_quant = act_quant

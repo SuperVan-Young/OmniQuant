@@ -267,10 +267,6 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    if args.quant_method == 'aowquant':
-        print("Currently for aowquant, we manually select which activation to quantize.")
-        print("What's more, we do not quantize weight for now.")
-
     # check
     if args.epochs > 0:
         assert args.lwc or args.let
