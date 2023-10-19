@@ -32,7 +32,7 @@ def get_baseline_experiment_configs(**kwargs):
         config = {
             'wbits': 16,
             'abits': abits,
-            f"aow-quant-act-{layer_type}": None,
+            f"aow_quant_act_{layer_type}": None,
         }
         config.update(kwargs)
         config_dict[config_name] = config
@@ -60,8 +60,8 @@ def get_outlier_experiment_configs(**kwargs):
         config = {
             'wbits': 16,
             'abits': 4,
-            f"aow-quant-act-{layer_type}": None,
-            'act-outlier-ratio': outlier_ratio,
+            f"aow_quant_act_{layer_type}": None,
+            'act_outlier-ratio': outlier_ratio,
         }
         config.update(kwargs)
         config_dict[config_name] = config
@@ -83,8 +83,8 @@ def get_grouping_experiment_configs(**kwargs):
         config = {
             'wbits': 16,
             'abits': 4,
-            f"aow-quant-act-{layer_type}": None,
-            'act-group-size': 128,
+            f"aow_quant_act_{layer_type}": None,
+            'act_group-size': 128,
         }
         config.update(kwargs)
         config_dict[config_name] = config
@@ -109,12 +109,12 @@ def get_efficient_grouping_experiment_configs(**kwargs):
         config = {
             'wbits': 16,
             'abits': 4,
-            f'aow-quant-act-{layer_type}': None,
-            'act-group-size': 128,
-            'act-reorder': None,
+            f'aow_quant_act_{layer_type}': None,
+            'act_group_size': 128,
+            'act_reorder': None,
         }
         if use_efficient_accumulation:
-            config['act-group-efficient-accumulation'] = None
+            config['act_group_efficient_accumulation'] = None
         config.update(kwargs)
         config_dict[config_name] = config
 

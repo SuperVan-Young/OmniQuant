@@ -18,7 +18,7 @@ def get_experiment_bash_script(
 # Experiment: {experiment_name}
 mkdir -p {output_dir}
 CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
---eval_ppl --epoch 0 --quant-method aowquant \\
+--eval_ppl --epoch 0 --quant_method aowquant \\
 --model {model_path} \\
 --output_dir {output_dir} \\
 """

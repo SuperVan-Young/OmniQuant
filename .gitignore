@@ -24,6 +24,7 @@ act_stats/
 outlier_stats/
 log.csv
 scripts/aow*
+scripts/demo
 output/
 output_demo/
 output_tryout/
