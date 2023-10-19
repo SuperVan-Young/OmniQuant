@@ -121,3 +121,29 @@ def get_efficient_grouping_experiment_configs(**kwargs):
         config_dict[config_name] = config
 
     return config_dict
+
+def get_unified_postlayernorm_outlier_experiment_configs(**kwargs):
+    config_dict = {}
+
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+    ]
+    act_unified_postlayernorm_outlier_list = [True, False]
+    for layer_type, act_unified_postlayernorm_outlier in product(
+        layer_type_list,
+        act_unified_postlayernorm_outlier_list
+        ):
+        config_name = f"{layer_type}_W16A4_ol1p128"
+        config_name += "_uol" if act_unified_postlayernorm_outlier else ""
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f'aow_quant_act_{layer_type}': None,
+            'act_unified_postlayernorm_outlier': None,
+            'act_outlier_ratio': 1/128,
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict

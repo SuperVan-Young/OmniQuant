@@ -67,6 +67,8 @@ def get_multi_config_script(
         if is_full:
             all_scripts += "wait\n"
         all_scripts += script
+
+    all_scripts += "wait\n"
     
     return all_scripts
 

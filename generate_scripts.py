@@ -37,6 +37,13 @@ def main():
         top_output_dir='./output/efficient_grouping/'), 
         './scripts/demo/efficient_grouping.sh')
     
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('tiny'),
+        server_config=server,
+        experiment_config_dict=get_unified_postlayernorm_outlier_experiment_configs(**extra_experiment_configs),
+        top_output_dir='./output/unified_postlayernorm_outlier/'), 
+        './scripts/demo/unified_postlayernorm_outlier.sh')
+    
     fc2_tuning_configs = get_outlier_experiment_configs(
         act_reorder=None,
         act_group_size=128,
