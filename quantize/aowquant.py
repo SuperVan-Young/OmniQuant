@@ -117,6 +117,24 @@ def set_quantizer_scale_round_zero_point(quantizer, scale, round_zero_point):
     quantizer.register_buffer('round_zero_point', round_zero_point)
 
 
+def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size):
+    """
+    Use unified outlier mask for post-layernorm activations
+    """
+    post_layernorm_stats = {k: v['output'] for k, v in act_stats.items() if 'norm' in k}
+    output_scales = torch.stack([v['max'] - v['min'] for v in post_layernorm_stats.values()], dim=0)
+    max_output_scales = torch.max(output_scales, dim=0)[0]
+
+    unified_outlier_index = get_outlier_channel_index(
+        max_output_scales,
+        outlier_ratio,
+        group_size = group_size,
+        outlier_metric = 'scale',
+        logger = None,
+    )
+    return unified_outlier_index
+
+
 def aowquant(
     lm,
     args,
@@ -218,14 +236,21 @@ def aowquant(
 
                 # select outlier channels， and generate outlier mask before reordering
                 if args.act_outlier_ratio > 0:
-                    outlier_index = get_outlier_channel_index(
-                        act_scale,
-                        args.act_outlier_ratio,
-                        # if use reordering, grouping is ignored
-                        group_size = None if use_act_reorder else args.act_group_size,
-                        outlier_metric = args.outlier_metric,
-                        logger = logger,
-                    )
+                    if args.act_unified_postlayernorm_outlier:
+                        outlier_index = get_unified_postlayernorm_outlier_index(
+                            act_stats,
+                            args.act_outlier_ratio,
+                            args.act_group_size,
+                        )
+                    else:
+                        outlier_index = get_outlier_channel_index(
+                            act_scale,
+                            args.act_outlier_ratio,
+                            # if use reordering, grouping is ignored
+                            group_size = None if use_act_reorder else args.act_group_size,
+                            outlier_metric = args.outlier_metric,
+                            logger = logger,
+                        )
 
                     outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).sum(dim=0).bool()
                 
