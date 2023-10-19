@@ -122,11 +122,17 @@ def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size
     Use unified outlier mask for post-layernorm activations
     """
     post_layernorm_stats = {k: v['output'] for k, v in act_stats.items() if 'norm' in k}
-    output_scales = torch.stack([v['max'] - v['min'] for v in post_layernorm_stats.values()], dim=0)
-    max_output_scales = torch.max(output_scales, dim=0)[0]
+    attention_list = []
+
+    for v in post_layernorm_stats.values():
+        output_scale = v['max'] - v['min']
+        attention = torch.softmax(output_scale / output_scale.mean(), dim=-1)
+        attention_list.append(attention)
+
+    all_attention = torch.stack(attention_list, dim=0).mean(dim=0)
 
     unified_outlier_index = get_outlier_channel_index(
-        max_output_scales,
+        all_attention,
         outlier_ratio,
         group_size = group_size,
         outlier_metric = 'scale',
