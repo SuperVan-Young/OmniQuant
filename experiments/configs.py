@@ -167,11 +167,14 @@ def get_outlier_bits_experiment_configs(**kwargs):
             f"aow_quant_act_{layer_type}": None,
             'act_outlier_ratio': 1/64,
             'act_outlier_bits': outlier_bit,
-            'act_group_size': 128,
-            'act_reorder': None,
+            'a_dynamic_method': None,
+            # 'act_group_size': 128,
+            # 'act_reorder': None,
 
             # 'act_group_efficient_accumulation': None,
             # 'act_unified_postlayernorm_outlier': None,
         }
         config.update(kwargs)
         config_dict[config_name] = config
+
+    return config_dict

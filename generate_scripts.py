@@ -56,5 +56,12 @@ def main():
         top_output_dir='./output/llama_fc2_tuning/'), 
         './scripts/demo/llama_fc2_tuning.sh')
     
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('tiny'),
+        server_config=server,
+        experiment_config_dict=get_outlier_bits_experiment_configs(**extra_experiment_configs),
+        top_output_dir='./output/outlier_bits/'), 
+        './scripts/demo/outlier_bits.sh')
+    
 if __name__ == "__main__":
     main()
