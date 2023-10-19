@@ -88,22 +88,25 @@ def get_reorder_channel_index(
 
     return reorder_indices
 
-def get_scale_zero_point(xmin, xmax, abits, is_attention=False):
+def get_scale_zero_point(xmin, xmax, abits, is_attention=False, efficient_groupwise=False):
+    """
+    Get scale and zero point with min-max at reduction dim
+    """
     xrange = torch.max(xmax - xmin, dim=-1, keepdim=True)[0]
-    # check xrange has zero?
-    # if (xrange == 0).any():
-    #     print(f"xrange has zero: {(xrange == 0).sum()}")
-    #     print(xmax.shape)
-    #     print(torch.max(xmax, dim=-1)[0])
-    #     raise RuntimeError
     scale = xrange / (2 ** abits - 1)
-    scale = scale.clamp(min=1e-3, max=1e4)
+    scale = scale.clamp(min=1e-3, max=1e4)  # 1e-5 is not enough for OPT
     round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
 
     if is_attention:
         scale = scale.reshape(1, -1, 1, 1)  # bsz, head, seq, hid
         num_attention_head = scale.shape[1]
         round_zero_point = round_zero_point.reshape(1, num_attention_head, 1, -1)
+
+    if efficient_groupwise and scale.numel() > 1:
+        # amortize cost of accumulation with shifting
+        max_scale = torch.max(scale)  # align with max scale
+        scale_exp = torch.log2(scale / max_scale).round().clamp(min=-16)
+        scale = max_scale * (2 ** scale_exp)
 
     return scale, round_zero_point
 
@@ -326,7 +329,7 @@ def aowquant(
                         # we simply assume grouping has no deficiency!
                         xmax = xmax.view(-1, args.act_group_size)
                         xmin = xmin.view(-1, args.act_group_size)
-                    scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits)
+                    scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits, efficient_groupwise=args.act_group_efficient_accumulation)
                     if args.act_group_size is None:
                         logger.info(f"Scale: {scale.item()}")
                     set_quantizer_scale_round_zero_point(module.act_quantizer, scale, round_zero_point)
