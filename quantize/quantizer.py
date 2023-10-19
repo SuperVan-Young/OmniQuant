@@ -29,6 +29,7 @@ class UniformAffineQuantizer(nn.Module):
         dynamic=False,
         dynamic_method="per_cluster",
         group_size=None,
+        outlier_bits=16,
         shape=None,
         lwc=False,
     ):
@@ -75,6 +76,7 @@ class UniformAffineQuantizer(nn.Module):
 
         self.enable = True
         self.group_size = group_size
+        self.outlier_bits = outlier_bits
 
     def change_n_bits(self, n_bits):
         self.n_bits = n_bits
@@ -145,18 +147,26 @@ class UniformAffineQuantizer(nn.Module):
                 # linear activation
                 assert len(self.outlier_mask.shape) == 1, f"{self.outlier_mask.shape}"
                 mask = self.outlier_mask.view(1, 1, -1)
-            elif len(x.shape) == 4:
-                # matmul activation
-                raise NotImplementedError
-                bsz, num_head, seq_len, head_dim = mask.shape
-                mask = mask.transpose(1, 2).view(bsz, seq_len, -1)
-                mask[:, :, self.high_prec_channels] = True
-                mask = mask.view(bsz, seq_len, num_head, head_dim).transpose(1, 2)
             else:
                 raise RuntimeError(f"Only support 3D & 4D tensor now, got shape {x.shape}")
             x_normal = x * (~mask)
             x_outlier = x * mask
-            x_dequant = self.forward_normal(x_normal) + x_outlier
+
+            # we implement dynamic quantization on our own
+            if self.dynamic_method == 'per_token':
+                self.per_token_dynamic_calibration(x_normal)
+            x_normal_dequant = self.fake_quant(x_normal, self.scale, self.round_zero_point)
+
+            if self.outlier_bits <= 16:
+                org_n_bits = self.n_bits
+                self.change_n_bits(self.outlier_bits)
+                x_outlier_dequant = self.fake_quant(x_outlier, self.scale, self.round_zero_point)
+                self.change_n_bits(org_n_bits)
+            else:
+                x_outlier_dequant = x_outlier
+
+            x_dequant = x_normal_dequant + x_outlier_dequant
+
         else:
             x_dequant = self.forward_normal(x)
 

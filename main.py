@@ -235,7 +235,7 @@ def main():
     parser.add_argument("--lwc",default=False, action="store_true",help="activate learnable weight clipping")
     parser.add_argument("--aug_loss", default=False, action="store_true", help="calculate additional loss with same input")
     parser.add_argument("--symmetric",default=False, action="store_true", help="symmetric quantization")
-    parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token", 'none'])
+    parser.add_argument("--a_dynamic_method", type=str, default="none", choices=["per_token", 'none'])
     parser.add_argument("--w_dynamic_method", type=str, default="per_channel", choices=["per_channel", 'none'])
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--multigpu", action="store_true", help="at eval, map model to multiple gpus")
@@ -244,20 +244,23 @@ def main():
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--act-stats", type=str, default=None)
-    parser.add_argument("--quant-method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
-    parser.add_argument("--act-group-size", type=int, default=None, help="group size of activation quantization")
-    parser.add_argument("--act-outlier-ratio", type=float, default=0, help="ratio of outlier activation channels")
-    parser.add_argument("--act-reorder", default=False, action="store_true", help="reorder activation quantization")
-    parser.add_argument("--outlier-metric", type=str, default='scale', choices=['scale', 'std'], help="metric for choosing outlier activation channels")
-    parser.add_argument("--reorder-metric", type=str, default='scale', choices=['scale', 'std'], help="metric for reorder activation quantization")
-    parser.add_argument("--aow-quant-act-qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
-    parser.add_argument("--aow-quant-act-oproj", default=False, action="store_true", help="quantize o_proj activation")
-    parser.add_argument("--aow-quant-act-fc1", default=False, action="store_true", help="quantize fc1 activation")
-    parser.add_argument("--aow-quant-act-fc2", default=False, action="store_true", help="quantize fc2 activation")
-    parser.add_argument("--aow-quant-act-q", default=False, action="store_true", help="quantize q activation")
-    parser.add_argument("--aow-quant-act-k", default=False, action="store_true", help="quantize k activation")
-    parser.add_argument("--aow-quant-act-v", default=False, action="store_true", help="quantize v activation")
-    parser.add_argument("--eval-ppl-dataset", type=str, nargs='+', default=['wikitext2', 'ptb', 'c4'], help="dataset for ppl evaluation")
+    parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
+    parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
+    parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
+    parser.add_argument("--act_outlier_bits", type=int, default=32, help="precision of outlier activation channels")
+    parser.add_argument("--act_unified_postlayernorm_outlier", default=False, action="store_true", help="unified outlier activation quantization for postlayernorm")
+    parser.add_argument("--act_reorder", default=False, action="store_true", help="reorder activation quantization")
+    parser.add_argument("--act_group_efficient_accumulation", default=False, action="store_true", help="efficient accumulation for groupwise activation quantization")
+    parser.add_argument("--outlier_metric", type=str, default='scale', choices=['scale', 'std'], help="metric for choosing outlier activation channels")
+    parser.add_argument("--reorder_metric", type=str, default='scale', choices=['scale', 'std'], help="metric for reorder activation quantization")
+    parser.add_argument("--aow_quant_act_qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
+    parser.add_argument("--aow_quant_act_oproj", default=False, action="store_true", help="quantize o_proj activation")
+    parser.add_argument("--aow_quant_act_fc1", default=False, action="store_true", help="quantize fc1 activation")
+    parser.add_argument("--aow_quant_act_fc2", default=False, action="store_true", help="quantize fc2 activation")
+    parser.add_argument("--aow_quant_act_q", default=False, action="store_true", help="quantize q activation")
+    parser.add_argument("--aow_quant_act_k", default=False, action="store_true", help="quantize k activation")
+    parser.add_argument("--aow_quant_act_v", default=False, action="store_true", help="quantize v activation")
+    parser.add_argument("--eval_ppl_dataset", type=str, nargs='+', default=['wikitext2'], help="dataset for ppl evaluation")
     parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 
     args = parser.parse_args()
@@ -265,10 +268,6 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-
-    if args.quant_method == 'aowquant':
-        print("Currently for aowquant, we manually select which activation to quantize.")
-        print("What's more, we do not quantize weight for now.")
 
     # check
     if args.epochs > 0:
@@ -315,6 +314,7 @@ def main():
         "symmetric": False,
         "dynamic_method": args.a_dynamic_method,
         "group_size": args.act_group_size,
+        "outlier_bits": args.act_outlier_bits,
     }
     args.q_quant_params = {
         "n_bits": args.abits,

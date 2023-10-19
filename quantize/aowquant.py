@@ -15,6 +15,7 @@ import utils
 import os
 import pdb
 import gc
+from copy import deepcopy
 
 def get_outlier_channel_index(
     act_scale,
@@ -88,22 +89,25 @@ def get_reorder_channel_index(
 
     return reorder_indices
 
-def get_scale_zero_point(xmin, xmax, abits, is_attention=False):
+def get_scale_zero_point(xmin, xmax, abits, is_attention=False, efficient_groupwise=False):
+    """
+    Get scale and zero point with min-max at reduction dim
+    """
     xrange = torch.max(xmax - xmin, dim=-1, keepdim=True)[0]
-    # check xrange has zero?
-    # if (xrange == 0).any():
-    #     print(f"xrange has zero: {(xrange == 0).sum()}")
-    #     print(xmax.shape)
-    #     print(torch.max(xmax, dim=-1)[0])
-    #     raise RuntimeError
     scale = xrange / (2 ** abits - 1)
-    scale = scale.clamp(min=1e-3, max=1e4)
+    scale = scale.clamp(min=1e-3, max=1e4)  # 1e-5 is not enough for OPT
     round_zero_point = (-xmin / scale).clamp(min=-1e4, max=1e4).round()
 
     if is_attention:
         scale = scale.reshape(1, -1, 1, 1)  # bsz, head, seq, hid
         num_attention_head = scale.shape[1]
         round_zero_point = round_zero_point.reshape(1, num_attention_head, 1, -1)
+
+    if efficient_groupwise and scale.numel() > 1:
+        # amortize cost of accumulation with shifting
+        max_scale = torch.max(scale)  # align with max scale
+        scale_exp = torch.log2(scale / max_scale).round().clamp(min=-16)
+        scale = max_scale * (2 ** scale_exp)
 
     return scale, round_zero_point
 
@@ -112,6 +116,30 @@ def set_quantizer_scale_round_zero_point(quantizer, scale, round_zero_point):
     del quantizer.round_zero_point
     quantizer.register_buffer('scale', scale)
     quantizer.register_buffer('round_zero_point', round_zero_point)
+
+
+def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size):
+    """
+    Use unified outlier mask for post-layernorm activations
+    """
+    post_layernorm_stats = {k: v['output'] for k, v in act_stats.items() if 'norm' in k}
+    attention_list = []
+
+    for v in post_layernorm_stats.values():
+        output_scale = v['max'] - v['min']
+        attention = torch.softmax(output_scale / output_scale.mean(), dim=-1)
+        attention_list.append(attention)
+
+    all_attention = torch.stack(attention_list, dim=0).mean(dim=0)
+
+    unified_outlier_index = get_outlier_channel_index(
+        all_attention,
+        outlier_ratio,
+        group_size = group_size,
+        outlier_metric = 'scale',
+        logger = None,
+    )
+    return unified_outlier_index
 
 
 def aowquant(
@@ -174,6 +202,13 @@ def aowquant(
         layer_name_prefix = "model.transformer.h"
     else:
         raise ValueError("Only support for opt/llama/Llama-2/falcon now")
+    
+    # unified postlayernorm outlier index
+    unified_postlayernorm_outlier_index = get_unified_postlayernorm_outlier_index(
+        act_stats,
+        args.act_outlier_ratio,
+        args.act_group_size,
+    ).to(dev)
 
     # quantize every layer, and set high precision activation channels
     for i in range(len(layers)):
@@ -199,10 +234,19 @@ def aowquant(
                 logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
-                act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                # act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
+                act_scale = (all_stats['input']['max'] - all_stats['input']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
 
                 # not using act reordering for oproj
-                use_act_reorder = args.act_reorder and (linear_category != 'oproj')
+                if linear_category == 'oproj':
+                    use_act_reorder = False
+                    select_outlier_within_group = True
+                elif linear_category == 'fc2':
+                    use_act_reorder = args.act_reorder
+                    select_outlier_within_group = False
+                else:
+                    use_act_reorder = not args.act_unified_postlayernorm_outlier
+                    select_outlier_within_group = False
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
@@ -214,14 +258,17 @@ def aowquant(
 
                 # select outlier channels， and generate outlier mask before reordering
                 if args.act_outlier_ratio > 0:
-                    outlier_index = get_outlier_channel_index(
-                        act_scale,
-                        args.act_outlier_ratio,
-                        # if use reordering, grouping is ignored
-                        group_size = None if use_act_reorder else args.act_group_size,
-                        outlier_metric = args.outlier_metric,
-                        logger = logger,
-                    )
+                    if args.act_unified_postlayernorm_outlier and linear_category in ('fc1', 'qkvproj'):
+                        outlier_index = deepcopy(unified_postlayernorm_outlier_index)
+                    else:
+                        outlier_index = get_outlier_channel_index(
+                            act_scale,
+                            args.act_outlier_ratio,
+                            # if use reordering, grouping is ignored
+                            group_size = None if select_outlier_within_group else 128,  # we hardcode this for convenience
+                            outlier_metric = args.outlier_metric,
+                            logger = logger,
+                        )
 
                     outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).sum(dim=0).bool()
                 
@@ -326,7 +373,7 @@ def aowquant(
                         # we simply assume grouping has no deficiency!
                         xmax = xmax.view(-1, args.act_group_size)
                         xmin = xmin.view(-1, args.act_group_size)
-                    scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits)
+                    scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits, efficient_groupwise=args.act_group_efficient_accumulation)
                     if args.act_group_size is None:
                         logger.info(f"Scale: {scale.item()}")
                     set_quantizer_scale_round_zero_point(module.act_quantizer, scale, round_zero_point)

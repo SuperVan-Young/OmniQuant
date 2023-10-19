@@ -24,9 +24,11 @@ act_stats/
 outlier_stats/
 log.csv
 scripts/aow*
+scripts/demo
 output/
 output_demo/
 output_tryout/
 output_static_demo/
+output_archive/
 results/
 .vscode

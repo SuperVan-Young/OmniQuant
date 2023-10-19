@@ -2,6 +2,7 @@ import transformers
 import torch
 from .models_utils import BaseLM, find_layers
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
+from auto_gptq import AutoGPTQForCausalLM
 import torch.nn.functional as F
 from torch import nn
 import torch
@@ -24,7 +25,10 @@ class LMClass(BaseLM):
         config = AutoConfig.from_pretrained(args.model)
         # self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
         self.tokenizer = get_tokenizer(args.model)
-        self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
+        if args.wbits == 16:
+            self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
+        else:
+            self.model = AutoGPTQForCausalLM.from_quantized(args.model + "-4bit").model
         # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16)
         self.seqlen = self.model.config.max_position_embeddings
         self.model.eval()
