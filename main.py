@@ -247,6 +247,7 @@ def main():
     parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
     parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
     parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
+    parser.add_argument("--act_outlier_bits", type=int, default=32, help="precision of outlier activation channels")
     parser.add_argument("--act_reorder", default=False, action="store_true", help="reorder activation quantization")
     parser.add_argument("--act_group_efficient_accumulation", default=False, action="store_true", help="efficient accumulation for groupwise activation quantization")
     parser.add_argument("--outlier_metric", type=str, default='scale', choices=['scale', 'std'], help="metric for choosing outlier activation channels")
@@ -312,6 +313,7 @@ def main():
         "symmetric": False,
         "dynamic_method": args.a_dynamic_method,
         "group_size": args.act_group_size,
+        "outlier_bits": args.act_outlier_bits,
     }
     args.q_quant_params = {
         "n_bits": args.abits,
