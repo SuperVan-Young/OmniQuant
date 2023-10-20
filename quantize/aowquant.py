@@ -118,7 +118,7 @@ def set_quantizer_scale_round_zero_point(quantizer, scale, round_zero_point):
     quantizer.register_buffer('round_zero_point', round_zero_point)
 
 
-def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size):
+def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size, logger=None):
     """
     Use unified outlier mask for post-layernorm activations
     """
@@ -137,7 +137,7 @@ def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size
         outlier_ratio,
         group_size = group_size,
         outlier_metric = 'scale',
-        logger = None,
+        logger = logger,
     )
     return unified_outlier_index
 
@@ -208,6 +208,7 @@ def aowquant(
         act_stats,
         args.act_outlier_ratio,
         args.act_group_size,
+        logger=logger,
     ).to(dev)
 
     # quantize every layer, and set high precision activation channels
