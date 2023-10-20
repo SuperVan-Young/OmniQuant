@@ -191,9 +191,11 @@ def get_full_model_experiment_configs(**kwargs):
         1 / 32,
     ]
     wbits_list = [4, 16]
-    for wbits, outlier_ratio in product(wbits_list, outlier_ratio_list):
+    act_unified_postlayernorm_outlier_list = [True, False]
+    for wbits, outlier_ratio, act_unified_postlayernorm_outlier in product(wbits_list, outlier_ratio_list, act_unified_postlayernorm_outlier_list):
         ol_name = get_outlier_name(outlier_ratio)
         config_name = f"all_W{wbits}A4_ol{ol_name}"
+        config_name += "_uol" if act_unified_postlayernorm_outlier else ""
         config = {
             'wbits': wbits,
             'abits': 4,
@@ -205,9 +207,11 @@ def get_full_model_experiment_configs(**kwargs):
             "aow_quant_act_k": None,
             "aow_quant_act_v": None,
             'act_outlier_ratio': outlier_ratio,
-            'act_unified_postlayernorm_outlier': None,
+            # 'act_unified_postlayernorm_outlier': None,
             'a_dynamic_method': 'per_token',
         }
+        if act_unified_postlayernorm_outlier:
+            config['act_unified_postlayernorm_outlier'] = None
         config.update(kwargs)
         config_dict[config_name] = config
 
