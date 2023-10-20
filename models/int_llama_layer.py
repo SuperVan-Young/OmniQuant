@@ -69,21 +69,29 @@ class QuantLlamaAttention(nn.Module):
 
         self.rotary_emb = copy.deepcopy(org_module.rotary_emb)
 
-        self.k_proj = QuantLinear(
-            org_module.k_proj,
-            args.weight_quant_params,
-            args.act_quant_params,
-        )
-        self.v_proj = QuantLinear(
-            org_module.v_proj,
-            args.weight_quant_params,
-            args.act_quant_params,
-        )
-        self.q_proj = QuantLinear(
-            org_module.q_proj,
-            args.weight_quant_params,
-            args.act_quant_params,
-        )
+        if hasattr(org_module, 'qkv_proj'):
+            # GPTQ llama use fused qkv_proj
+            self.qkv_proj = QuantLinear(
+                org_module.qkv_proj,
+                args.weight_quant_params,
+                args.act_quant_params,
+            )
+        else:
+            self.k_proj = QuantLinear(
+                org_module.k_proj,
+                args.weight_quant_params,
+                args.act_quant_params,
+            )
+            self.v_proj = QuantLinear(
+                org_module.v_proj,
+                args.weight_quant_params,
+                args.act_quant_params,
+            )
+            self.q_proj = QuantLinear(
+                org_module.q_proj,
+                args.weight_quant_params,
+                args.act_quant_params,
+            )
         self.o_proj = QuantLinear(
             org_module.o_proj, args.weight_quant_params, args.act_quant_params
         )
@@ -112,12 +120,17 @@ class QuantLlamaAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
-        # query_states = self.q_proj(hidden_states)
-        # key_states = self.k_proj(hidden_states)
-        # value_states = self.v_proj(hidden_states)
-        query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        key_states =self.k_proj(hidden_states).view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-        value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        
+        if hasattr(self, 'qkv_proj'):
+            qkv_states = self.qkv_proj(hidden_states)
+            query_states, key_states, value_states = torch.split(qkv_states, self.hidden_size, dim=2)
+        else:
+            query_states = self.q_proj(hidden_states)
+            key_states = self.k_proj(hidden_states)
+            value_states = self.v_proj(hidden_states)
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
