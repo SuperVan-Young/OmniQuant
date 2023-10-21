@@ -63,7 +63,7 @@ def main():
         './scripts/demo/outlier_bits.sh')
     
     write_script(get_multi_model_script(
-        model_name_list=get_model_list('tiny'),
+        model_name_list=get_model_list('tiny') + get_model_list('small') + get_model_list('medium'),
         server_config=get_server_config(args.server),
         experiment_config_dict=get_full_model_experiment_configs(),
         top_output_dir='./output/full_model/'), 

@@ -217,6 +217,11 @@ def get_full_model_experiment_configs(**kwargs):
             config = deepcopy(config)
             config['act_group_size'] = 128
             config_dict[config_name] = config
+        else:
+            config_name = f"all_W{wbits}A4O16_ol{ol_name}"
+            config = deepcopy(config)
+            config['act_outlier_bits'] = 16
+            config_dict[config_name] = config
 
     return config_dict
 

@@ -248,7 +248,7 @@ def main():
     parser.add_argument("--weight_group_size", type=int, default=None, help="group size of weight quantization")
     parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
     parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
-    parser.add_argument("--act_outlier_bits", type=int, default=32, help="precision of outlier activation channels")
+    parser.add_argument("--act_outlier_bits", type=int, default=8, help="precision of outlier activation channels")
     parser.add_argument("--act_unified_postlayernorm_outlier", default=False, action="store_true", help="unified outlier activation quantization for postlayernorm")
     parser.add_argument("--act_reorder", default=False, action="store_true", help="reorder activation quantization")
     parser.add_argument("--act_group_efficient_accumulation", default=False, action="store_true", help="efficient accumulation for groupwise activation quantization")

@@ -159,16 +159,13 @@ class UniformAffineQuantizer(nn.Module):
             x_normal_dequant = self.fake_quant(x_normal, self.scale, self.round_zero_point)
 
             # outliers just use E5M2 FP8 format, which can assure quantization range 
-            x_outlier_dequant = float_quantize((x_outlier / self.scale).float(), exp=5, man=2, rounding="nearest")
-            x_outlier_dequant = x_outlier_dequant.to(self.scale.dtype) * self.scale
-
-            # if self.outlier_bits <= 16:
-            #     org_n_bits = self.n_bits
-            #     self.change_n_bits(self.outlier_bits)
-            #     x_outlier_dequant = self.fake_quant(x_outlier, self.scale, self.round_zero_point)
-            #     self.change_n_bits(org_n_bits)
-            # else:
-            #     x_outlier_dequant = x_outlier
+            if self.outlier_bits == 8:
+                x_outlier_dequant = float_quantize((x_outlier / self.scale).float(), exp=5, man=2, rounding="nearest")
+                x_outlier_dequant = x_outlier_dequant.to(self.scale.dtype) * self.scale
+            elif self.outlier_bits == 16:
+                x_outlier_dequant = x_outlier
+            else:
+                raise RuntimeError(f"Outlier bits {self.outlier_bits} not supported.")
 
             x_dequant = x_normal_dequant + x_outlier_dequant
 
