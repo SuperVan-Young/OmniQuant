@@ -70,5 +70,12 @@ def main():
         top_output_dir='./output/full_model/'), 
         './scripts/demo/full_model.sh')
     
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('tiny'),
+        server_config=server,
+        experiment_config_dict=get_full_model_static_experiment_configs(),
+        top_output_dir='./output/full_model_static/'), 
+        './scripts/demo/full_model_static.sh')
+    
 if __name__ == "__main__":
     main()

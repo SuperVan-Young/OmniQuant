@@ -118,7 +118,7 @@ def set_quantizer_scale_round_zero_point(quantizer, scale, round_zero_point):
     quantizer.register_buffer('round_zero_point', round_zero_point)
 
 
-def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size):
+def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size, logger=None):
     """
     Use unified outlier mask for post-layernorm activations
     """
@@ -137,7 +137,7 @@ def get_unified_postlayernorm_outlier_index(act_stats, outlier_ratio, group_size
         outlier_ratio,
         group_size = group_size,
         outlier_metric = 'scale',
-        logger = None,
+        logger = logger,
     )
     return unified_outlier_index
 
@@ -164,6 +164,7 @@ def aowquant(
         model.model.norm = model.model.norm.to(dev)
         DecoderLayer = QuantLlamaDecoderLayer
         pairs = {
+            "qkv_proj": "qkvproj",
             "q_proj":"qkvproj",
             "k_proj":"qkvproj",
             "v_proj":"qkvproj",
@@ -208,6 +209,7 @@ def aowquant(
         act_stats,
         args.act_outlier_ratio,
         args.act_group_size,
+        logger=logger,
     ).to(dev)
 
     # quantize every layer, and set high precision activation channels
@@ -233,9 +235,12 @@ def aowquant(
                     continue
                 logger.info(f"Set activation quantizer of {name} to {module.use_act_quant}")
 
-                all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
-                # act_scale = all_stats['abs_input']['max'].to(device=dev, dtype=a_dtype).clamp(1e-5)
-                act_scale = (all_stats['input']['max'] - all_stats['input']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
+                if is_llama and linear_category == 'qkvproj':
+                    all_stats = act_stats[f"{layer_name_prefix}.{i}.input_layernorm"]
+                    act_scale = (all_stats['output']['max'] - all_stats['output']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
+                else:
+                    all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]
+                    act_scale = (all_stats['input']['max'] - all_stats['input']['min']).to(device=dev, dtype=a_dtype).clamp(1e-5)
 
                 # not using act reordering for oproj
                 if linear_category == 'oproj':
