@@ -44,7 +44,7 @@ def get_multi_config_script(
     Results are organized in top_output_pdir/{experiment_name} way
     """
     all_scripts = ""
-    server_config.reset_gpu_ids()
+    # server_config.reset_gpu_ids()
 
     for experiment_name, experiment_config in experiment_config_dict.items():
         model_path = os.path.join(server_config.model_dir, model_name)
@@ -68,7 +68,7 @@ def get_multi_config_script(
             all_scripts += "wait\n"
         all_scripts += script
 
-    all_scripts += "wait\n"
+    # all_scripts += "wait\n"
     
     return all_scripts
 
