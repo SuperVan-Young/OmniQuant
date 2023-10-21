@@ -28,7 +28,11 @@ class LMClass(BaseLM):
         if args.wbits == 16:
             self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
         else:
-            self.model = AutoGPTQForCausalLM.from_quantized(args.model + "-4bit").model
+            if args.weight_group_size is not None:
+                model_suffix = f"-{args.wbits}bit-{args.weight_group_size}g"
+            else:
+                model_suffix = f"-{args.wbits}bit"
+            self.model = AutoGPTQForCausalLM.from_quantized(args.model + model_suffix).model
         # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16)
         self.seqlen = self.model.config.max_position_embeddings
         self.model.eval()

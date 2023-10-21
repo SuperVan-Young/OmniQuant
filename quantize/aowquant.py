@@ -245,13 +245,13 @@ def aowquant(
                 # not using act reordering for oproj
                 if linear_category == 'oproj':
                     use_act_reorder = False
-                    select_outlier_within_group = True
+                    outlier_group_size = 128  # we hardcode this for convenience, since all the model we use have this outlier group size
                 elif linear_category == 'fc2':
                     use_act_reorder = args.act_reorder
-                    select_outlier_within_group = False
+                    outlier_group_size = args.weight_group_size  # accomodate GPTQ groupwise quantization, so that needless to requantize weight
                 else:
                     use_act_reorder = not args.act_unified_postlayernorm_outlier
-                    select_outlier_within_group = False
+                    outlier_group_size = args.weight_group_size
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
@@ -270,7 +270,7 @@ def aowquant(
                             act_scale,
                             args.act_outlier_ratio,
                             # if use reordering, grouping is ignored
-                            group_size = None if select_outlier_within_group else 128,  # we hardcode this for convenience
+                            group_size = outlier_group_size,  # we hardcode this for convenience
                             outlier_metric = args.outlier_metric,
                             logger = logger,
                         )

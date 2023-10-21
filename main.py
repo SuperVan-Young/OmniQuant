@@ -245,6 +245,7 @@ def main():
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
+    parser.add_argument("--weight_group_size", type=int, default=None, help="group size of weight quantization")
     parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
     parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
     parser.add_argument("--act_outlier_bits", type=int, default=32, help="precision of outlier activation channels")
