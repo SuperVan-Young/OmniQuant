@@ -191,12 +191,15 @@ def get_full_model_experiment_configs(**kwargs):
         1 / 32,
         1 / 16,
     ]
-    wbits_list = [4, 16]
-    for wbits, outlier_ratio in product(wbits_list, outlier_ratio_list):
-        ol_name = get_outlier_name(outlier_ratio)
-        config_name = f"all_W{wbits}A4_ol{ol_name}"
+
+    # activation only experiments
+    act_outlier_mant_list = [6, 10]
+    for outlier_ratio, act_outlier_mant in product(outlier_ratio_list, act_outlier_mant_list):
+        ol_ratio_name = get_outlier_name(outlier_ratio)
+
+        config_name = f"all_W16A4O{6+act_outlier_mant}_ol{ol_ratio_name}"
         config = {
-            'wbits': wbits,
+            'wbits': 16,
             'abits': 4,
             "aow_quant_act_qkvproj": None,
             "aow_quant_act_oproj": None,
@@ -207,21 +210,38 @@ def get_full_model_experiment_configs(**kwargs):
             "aow_quant_act_v": None,
             'act_outlier_ratio': outlier_ratio,
             'a_dynamic_method': 'per_token',
+            'act_outlier_exp': 5,
+            'act_outlier_mant': act_outlier_mant,
         }
         config.update(kwargs)
         config_dict[config_name] = config
+        
+    # weight activation quantization experiment
+    weight_group_size = [None, 128]
+    for outlier_ratio, weight_group_size in product(outlier_ratio_list, weight_group_size):
+        ol_ratio_name = get_outlier_name(outlier_ratio)
 
-        # add g128
-        if wbits == 4:
-            config_name += "_wg128"
-            config = deepcopy(config)
-            config['act_group_size'] = 128
-            config_dict[config_name] = config
-        else:
-            config_name = f"all_W{wbits}A4O16_ol{ol_name}"
-            config = deepcopy(config)
-            config['act_outlier_bits'] = 16
-            config_dict[config_name] = config
+        config_name = f"all_W4A4O12_ol{ol_ratio_name}"
+        if weight_group_size is not None:
+            config_name += f"_wg{weight_group_size}"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            "aow_quant_act_qkvproj": None,
+            "aow_quant_act_oproj": None,
+            "aow_quant_act_fc1": None,
+            "aow_quant_act_fc2": None,
+            "aow_quant_act_q": None,
+            "aow_quant_act_k": None,
+            "aow_quant_act_v": None,
+            'act_outlier_ratio': outlier_ratio,
+            'a_dynamic_method': 'per_token',
+            'act_outlier_exp': 5,
+            'act_outlier_mant': 6,
+            'weight_group_size': weight_group_size,
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
 
     return config_dict
 
