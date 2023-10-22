@@ -14,14 +14,19 @@ def get_experiment_bash_script(
     Bash script for single model, single config
     """
 
+    cuda_visible_devices = ",".join([str(gpu_id) for gpu_id in available_gpus])
+
     scripts = f"""
 # Experiment: {experiment_name}
 mkdir -p {output_dir}
-CUDA_VISIBLE_DEVICES=\"{available_gpus}\" python main.py \\
+CUDA_VISIBLE_DEVICES=\"{cuda_visible_devices}\" python main.py \\
 --eval_ppl --epoch 0 --quant_method aowquant \\
 --model {model_path} \\
 --output_dir {output_dir} \\
 """
+    if len(available_gpus) > 1:
+        scripts += "--multigpu \\\n"
+
     for config_name, config_val in experiment_config.items():
         if config_val is None:
             scripts += f"--{config_name} \\\n"
@@ -50,13 +55,12 @@ def get_multi_config_script(
         model_path = os.path.join(server_config.model_dir, model_name)
         
         gpu_ids, is_full = server_config.allocate_gpu_ids(model_name)
-        available_gpus = ",".join([str(gpu_id) for gpu_id in gpu_ids])
 
         output_dir = os.path.join(output_pdir, experiment_name)
 
         script = get_experiment_bash_script(
             model_path,
-            available_gpus,
+            gpu_ids,
             experiment_config,
             output_dir,
             bg=True,
