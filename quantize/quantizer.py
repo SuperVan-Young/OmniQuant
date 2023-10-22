@@ -30,7 +30,8 @@ class UniformAffineQuantizer(nn.Module):
         dynamic=False,
         dynamic_method="per_cluster",
         group_size=None,
-        outlier_bits=16,
+        outlier_exp=5,
+        outlier_mant=10,
         shape=None,
         lwc=False,
     ):
@@ -77,7 +78,8 @@ class UniformAffineQuantizer(nn.Module):
 
         self.enable = True
         self.group_size = group_size
-        self.outlier_bits = outlier_bits
+        self.outlier_exp = outlier_exp
+        self.outlier_mant = outlier_mant
 
     def change_n_bits(self, n_bits):
         self.n_bits = n_bits
@@ -159,13 +161,11 @@ class UniformAffineQuantizer(nn.Module):
             x_normal_dequant = self.fake_quant(x_normal, self.scale, self.round_zero_point)
 
             # outliers just use E5M2 FP8 format, which can assure quantization range 
-            if self.outlier_bits == 8:
-                x_outlier_dequant = float_quantize((x_outlier / self.scale).float(), exp=5, man=2, rounding="nearest")
-                x_outlier_dequant = x_outlier_dequant.to(self.scale.dtype) * self.scale
-            elif self.outlier_bits == 16:
+            if self.outlier_exp == 5 and  self.outlier_mant == 10:
                 x_outlier_dequant = x_outlier
             else:
-                raise RuntimeError(f"Outlier bits {self.outlier_bits} not supported.")
+                x_outlier_dequant = float_quantize((x_outlier / self.scale).float(), exp=self.outlier_exp, man=self.outlier_mant, rounding="nearest")
+                x_outlier_dequant = x_outlier_dequant.to(self.scale.dtype) * self.scale
 
             x_dequant = x_normal_dequant + x_outlier_dequant
 
