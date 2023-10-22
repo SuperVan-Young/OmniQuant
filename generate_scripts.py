@@ -19,7 +19,6 @@ parser.add_argument("--a_dynamic_method", type=str, default="none", choices=["pe
 
 args = parser.parse_args()
 
-server = get_server_config(args.server)
 model_list = get_model_list(args.model_list)
 extra_experiment_configs = {
     "a_dynamic_method": args.a_dynamic_method,
@@ -32,14 +31,14 @@ def write_script(script, script_path):
 def main():
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
-        server_config=server,
+        server_config=get_server_config(args.server),
         experiment_config_dict=get_efficient_grouping_experiment_configs(**extra_experiment_configs),
         top_output_dir='./output/efficient_grouping/'), 
         './scripts/demo/efficient_grouping.sh')
     
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
-        server_config=server,
+        server_config=get_server_config(args.server),
         experiment_config_dict=get_unified_postlayernorm_outlier_experiment_configs(**extra_experiment_configs),
         top_output_dir='./output/unified_postlayernorm_outlier/'), 
         './scripts/demo/unified_postlayernorm_outlier.sh')
@@ -51,28 +50,28 @@ def main():
     fc2_tuning_configs = {k: v for k, v in fc2_tuning_configs.items() if "aow_quant_act_fc2" in v.keys()}
     write_script(get_multi_model_script(
         model_name_list=['llama-7b-meta'],
-        server_config=server,
+        server_config=get_server_config(args.server),
         experiment_config_dict=fc2_tuning_configs,
         top_output_dir='./output/llama_fc2_tuning/'), 
         './scripts/demo/llama_fc2_tuning.sh')
     
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
-        server_config=server,
+        server_config=get_server_config(args.server),
         experiment_config_dict=get_outlier_bits_experiment_configs(**extra_experiment_configs),
         top_output_dir='./output/outlier_bits/'), 
         './scripts/demo/outlier_bits.sh')
     
     write_script(get_multi_model_script(
-        model_name_list=get_model_list('tiny'),
-        server_config=server,
+        model_name_list=get_model_list('tiny') + get_model_list('small') + get_model_list('medium'),
+        server_config=get_server_config(args.server),
         experiment_config_dict=get_full_model_experiment_configs(),
         top_output_dir='./output/full_model/'), 
         './scripts/demo/full_model.sh')
     
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
-        server_config=server,
+        server_config=get_server_config(args.server),
         experiment_config_dict=get_full_model_static_experiment_configs(),
         top_output_dir='./output/full_model_static/'), 
         './scripts/demo/full_model_static.sh')

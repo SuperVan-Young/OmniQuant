@@ -1,6 +1,7 @@
 # Experiment Configurations
 
 from itertools import product
+from copy import deepcopy
 
 def get_outlier_name(outlier_ratio):
     ol_name = f"1p{int(1/outlier_ratio)}"
@@ -186,16 +187,14 @@ def get_full_model_experiment_configs(**kwargs):
     config_dict = {}
 
     outlier_ratio_list = [
-        1 / 128,
         1 / 64,
         1 / 32,
+        1 / 16,
     ]
     wbits_list = [4, 16]
-    act_unified_postlayernorm_outlier_list = [True, False]
-    for wbits, outlier_ratio, act_unified_postlayernorm_outlier in product(wbits_list, outlier_ratio_list, act_unified_postlayernorm_outlier_list):
+    for wbits, outlier_ratio in product(wbits_list, outlier_ratio_list):
         ol_name = get_outlier_name(outlier_ratio)
         config_name = f"all_W{wbits}A4_ol{ol_name}"
-        config_name += "_uol" if act_unified_postlayernorm_outlier else ""
         config = {
             'wbits': wbits,
             'abits': 4,
@@ -207,13 +206,22 @@ def get_full_model_experiment_configs(**kwargs):
             "aow_quant_act_k": None,
             "aow_quant_act_v": None,
             'act_outlier_ratio': outlier_ratio,
-            # 'act_unified_postlayernorm_outlier': None,
             'a_dynamic_method': 'per_token',
         }
-        if act_unified_postlayernorm_outlier:
-            config['act_unified_postlayernorm_outlier'] = None
         config.update(kwargs)
         config_dict[config_name] = config
+
+        # add g128
+        if wbits == 4:
+            config_name += "_wg128"
+            config = deepcopy(config)
+            config['act_group_size'] = 128
+            config_dict[config_name] = config
+        else:
+            config_name = f"all_W{wbits}A4O16_ol{ol_name}"
+            config = deepcopy(config)
+            config['act_outlier_bits'] = 16
+            config_dict[config_name] = config
 
     return config_dict
 
