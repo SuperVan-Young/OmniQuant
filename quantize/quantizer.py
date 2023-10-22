@@ -8,7 +8,7 @@ import pdb
 import math
 from qtorch.quant import float_quantize
 
-CLIPMIN = 1e-5
+CLIPMIN = 1e-2  # typically, minimum scale is still larger than this
 
 
 
@@ -184,6 +184,11 @@ class UniformAffineQuantizer(nn.Module):
             raise RuntimeError("NaN detected in quantized tensor.")
         has_inf = torch.isinf(x_dequant).any()
         if has_inf:
+            print(f"min scale: {self.scale.min()}, max scale: {self.scale.max()}")
+            print(f"max outlier: {x_outlier.abs().max()}")
+            print(f"num inf: {torch.isinf(x_dequant).sum()}")
+            print(f"num normal dequant inf: {torch.isinf(x_normal_dequant).sum()}")
+            print(f"num outlier dequant inf: {torch.isinf(x_outlier_dequant).sum()}")
             raise RuntimeError("Inf detected in quantized tensor.")
         return x_dequant
 
