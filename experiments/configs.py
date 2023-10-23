@@ -226,7 +226,7 @@ def get_full_model_experiment_configs(**kwargs):
         if weight_group_size is not None:
             config_name += f"_wg{weight_group_size}"
         config = {
-            'wbits': 16,
+            'wbits': 4,
             'abits': 4,
             "aow_quant_act_qkvproj": None,
             "aow_quant_act_oproj": None,
