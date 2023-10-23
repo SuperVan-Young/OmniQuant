@@ -240,8 +240,9 @@ def get_full_model_experiment_configs(**kwargs):
             'act_outlier_ratio': outlier_ratio,
             'act_outlier_exp': 5,
             'act_outlier_mant': 6,
-            'weight_group_size': weight_group_size,
         }
+        if weight_group_size is not None:
+            config['weight_group_size'] = weight_group_size
         config.update(kwargs)
         config_dict[config_name] = config
 
