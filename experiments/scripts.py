@@ -19,7 +19,7 @@ def get_experiment_bash_script(
     scripts = f"""
 # Experiment: {experiment_name}
 mkdir -p {output_dir}
-CUDA_VISIBLE_DEVICES=\"{cuda_visible_devices}\" python main.py \\
+CUDA_LAUNCH_BLOCKING=\"1\" \\ CUDA_VISIBLE_DEVICES=\"{cuda_visible_devices}\" python main.py \\
 --eval_ppl --epoch 0 --quant_method aowquant \\
 --model {model_path} \\
 --output_dir {output_dir} \\

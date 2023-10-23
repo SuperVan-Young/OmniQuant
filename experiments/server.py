@@ -12,7 +12,7 @@ class ServerConfig():
 
     def _allocate_num_gpu(self, model_name):
         weight_size_in_GB = float(model_name.split("-")[1].replace("b", ""))
-        required_size_in_GB = weight_size_in_GB * 2.5
+        required_size_in_GB = weight_size_in_GB * 2.4
         num_gpu = math.ceil(required_size_in_GB / self.gpu_memory)
         assert num_gpu <= len(self.gpu_list), "not enough gpu"
         return num_gpu
