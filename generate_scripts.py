@@ -79,6 +79,13 @@ def main():
             top_output_dir='./output/full_model/'), 
             f'./scripts/final/{model_list_type}.sh')
     
+    # O8 experiments
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('all'),
+        server_config=get_server_config(args.server),
+        experiment_config_dict=get_full_model_O8_experiment_configs(),
+        top_output_dir='./output/full_model/'), 
+        './scripts/final/O8.sh')
 
 if __name__ == "__main__":
     main()
