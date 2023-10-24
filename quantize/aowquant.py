@@ -221,6 +221,7 @@ def aowquant(
         layer = layers[i].to(dev)
         qlayer = DecoderLayer(lm.model.config, layer, args)
         qlayer = qlayer.to(dev)
+        qlayer.org_device = layer.org_device
 
         # init smooth parameters
         qlayer.set_quant_state(weight_quant=False, act_quant=False)

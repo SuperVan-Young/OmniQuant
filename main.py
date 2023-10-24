@@ -62,7 +62,13 @@ def evaluate(lm, args, logger):
             input_device = lm.model.model.decoder.layers[0].device
             output_device = lm.model.model.decoder.layers[-1].device
             lm._device = input_device
-            assert input_device == output_device
+            # assert input_device == output_device
+            if input_device != output_device:
+                # add a hook to transfer output to input device
+                def hook(module, input, output):
+                    return tuple(_.to(input_device) for _ in output)
+                lm.model.model.decoder.layers[-1].register_forward_hook(hook)
+                output_device = input_device
             lm.model.model.decoder.embed_positions.to(input_device)
             lm.model.model.decoder.embed_tokens.to(input_device)
             lm.model.model.decoder.final_layer_norm.to(output_device)
@@ -72,7 +78,13 @@ def evaluate(lm, args, logger):
             map_layers_to_multi_gpus(lm.model.model.layers)
             input_device = lm.model.model.layers[0].device
             output_device = lm.model.model.layers[-1].device
-            assert input_device == output_device
+            # assert input_device == output_device
+            if input_device != output_device:
+                # add a hook to transfer output to input device
+                def hook(module, input, output):
+                    return tuple(_.to(input_device) for _ in output)
+                lm.model.model.layers[-1].register_forward_hook(hook)
+                output_device = input_device
             lm._device = input_device
             lm.model.model.embed_tokens.to(input_device)
             lm.model.model.norm.to(output_device)
@@ -81,7 +93,13 @@ def evaluate(lm, args, logger):
             map_layers_to_multi_gpus(lm.model.transformer.h)
             input_device = lm.model.transformer.h[0].device
             output_device = lm.model.transformer.h[-1].device
-            assert input_device == output_device
+            # assert input_device == output_device
+            if input_device != output_device:
+                # add a hook to transfer output to input device
+                def hook(module, input, output):
+                    return tuple(_.to(input_device) for _ in output)
+                lm.model.transformer.h[-1].register_forward_hook(hook)
+                output_device = input_device
             lm._device = input_device
             lm.model.transformer.word_embeddings.to(input_device)
             lm.model.transformer.ln_f.to(output_device)
@@ -300,7 +318,14 @@ def main():
     for param in lm.model.parameters():
         param.requires_grad = False
 
-    
+    # AutoGPTQ device problem workaround: use the same devices
+    for name, module in lm.model.named_modules():
+        try:
+            org_device = next(module.parameters()).device
+            module.org_device = org_device
+            print(name, org_device)
+        except:
+            continue
 
     args.weight_quant_params = {
         "n_bits": args.wbits,

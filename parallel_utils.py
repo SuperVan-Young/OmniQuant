@@ -164,14 +164,19 @@ def naive_assign_layers_to_gpus(layers):
         gpu_index = [x["id"] for x in nvidia_smi_memory_info()]
 
     num_layer_per_gpu = (len(layers) + len(gpu_index) - 1) // len(gpu_index)
-    layer_gpu_map = {layer: (i + 1) // num_layer_per_gpu for i, layer in enumerate(layers)}
-    layer_gpu_map[layers[-1]] = layer_gpu_map[layers[0]]  # map last layer with first layer
+    layer_gpu_map = {layer: i // num_layer_per_gpu for i, layer in enumerate(layers)}
 
     for layer_id, gpu_id in tqdm(enumerate(layer_gpu_map.values()), desc="map layers to gpus"):
         layer = layers[layer_id]
-        # print(f"map layer {layer_id} to gpu {gpu_id}")
-        layer.to(f"cuda:{gpu_id}")
-        layer.device = f"cuda:{gpu_id}"
+        if hasattr(layer, 'org_device') and layer.org_device.type == 'cuda':
+            # use original device
+            layer.to(layer.org_device)
+            layer.device = layer.org_device
+            layer_gpu_map[layer] = layer.org_device.index
+        else:
+            layer.to(f"cuda:{gpu_id}")
+            layer.device = f"cuda:{gpu_id}"
+        print(f"map layer {layer_id} to gpu {layer_gpu_map[layer]}")
 
     return layer_gpu_map
 
