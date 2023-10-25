@@ -79,12 +79,6 @@ def evaluate(lm, args, logger):
             input_device = lm.model.model.layers[0].device
             output_device = lm.model.model.layers[-1].device
             # assert input_device == output_device
-            if input_device != output_device:
-                # add a hook to transfer output to input device
-                def hook(module, input, output):
-                    return tuple(_.to(input_device) for _ in output)
-                lm.model.model.layers[-1].register_forward_hook(hook)
-                output_device = input_device
             lm._device = input_device
             lm.model.model.embed_tokens.to(input_device)
             lm.model.model.norm.to(output_device)
@@ -151,7 +145,8 @@ def evaluate(lm, args, logger):
                 shift_logits = logits[:, :-1, :]
                 shift_labels = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)][
                     :, 1:
-                ].to(lm.model.lm_head.weight.device)
+                # ].to(lm.model.lm_head.weight.device)
+                ].to(output_device)
                 loss_fct = nn.CrossEntropyLoss()
                 loss = loss_fct(
                     shift_logits.view(-1, shift_logits.size(-1)),
