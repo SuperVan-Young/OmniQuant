@@ -329,10 +329,18 @@ def get_full_model_accuracy_experiment_configs(**kwargs):
         1 / 64,
     ]
     act_outlier_mant_list = [6]
+    task_list = [
+        'piqa',
+        'arc_easy',
+        'arc_challenge',
+        'boolq',
+        'hellaswag',
+        'winogrande',
+    ]
 
-    for outlier_ratio, act_outlier_mant in product(outlier_ratio_list, act_outlier_mant_list):
+    for outlier_ratio, act_outlier_mant, task in product(outlier_ratio_list, act_outlier_mant_list, task_list):
         ol_ratio_name = get_outlier_name(outlier_ratio)
-        config_name = f"all_W4A4O{6+act_outlier_mant}_ol{ol_ratio_name}_accuracy"
+        config_name = f"all_W4A4O{6+act_outlier_mant}_ol{ol_ratio_name}_accuracy_{task}"
         config = {
             'wbits': 4,
             'abits': 4,
@@ -348,8 +356,7 @@ def get_full_model_accuracy_experiment_configs(**kwargs):
             'act_outlier_ratio': outlier_ratio,
             'act_outlier_exp': 5,
             'act_outlier_mant': act_outlier_mant,
-            'tasks': 'piqa,arc_easy,arc_challenge,boolq,hellaswag,winogrande',
-            # 'tasks': 'piqa,arc_easy',  # testing
+            'tasks': task,
         }
         config.update(kwargs)
         config_dict[config_name] = config
