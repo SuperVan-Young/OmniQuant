@@ -63,12 +63,12 @@ def evaluate(lm, args, logger):
             output_device = lm.model.model.decoder.layers[-1].device
             lm._device = input_device
             # assert input_device == output_device
-            if input_device != output_device:
-                # add a hook to transfer output to input device
-                def hook(module, input, output):
-                    return tuple(_.to(input_device) for _ in output)
-                lm.model.model.decoder.layers[-1].register_forward_hook(hook)
-                output_device = input_device
+            # if input_device != output_device:
+            #     # add a hook to transfer output to input device
+            #     def hook(module, input, output):
+            #         return tuple(_.to(input_device) for _ in output)
+            #     lm.model.model.decoder.layers[-1].register_forward_hook(hook)
+            #     output_device = input_device
             lm.model.model.decoder.embed_positions.to(input_device)
             lm.model.model.decoder.embed_tokens.to(input_device)
             lm.model.model.decoder.final_layer_norm.to(output_device)
@@ -88,12 +88,12 @@ def evaluate(lm, args, logger):
             input_device = lm.model.transformer.h[0].device
             output_device = lm.model.transformer.h[-1].device
             # assert input_device == output_device
-            if input_device != output_device:
-                # add a hook to transfer output to input device
-                def hook(module, input, output):
-                    return tuple(_.to(input_device) for _ in output)
-                lm.model.transformer.h[-1].register_forward_hook(hook)
-                output_device = input_device
+            # if input_device != output_device:
+            #     # add a hook to transfer output to input device
+            #     def hook(module, input, output):
+            #         return tuple(_.to(input_device) for _ in output)
+            #     lm.model.transformer.h[-1].register_forward_hook(hook)
+            #     output_device = input_device
             lm._device = input_device
             lm.model.transformer.word_embeddings.to(input_device)
             lm.model.transformer.ln_f.to(output_device)
@@ -105,6 +105,7 @@ def evaluate(lm, args, logger):
             lm.model = lm.model.to(lm.device)
         elif "falcon" in args.net.lower():
             lm.model.transformer = lm.model.transformer.to(lm.device)
+        output_device = lm.device
 
 
     if args.eval_ppl:
