@@ -321,3 +321,37 @@ def get_full_model_static_experiment_configs(**kwargs):
         config_dict[config_name] = config
 
     return config_dict
+
+def get_full_model_accuracy_experiment_configs(**kwargs):
+    config_dict = {}
+
+    outlier_ratio_list = [
+        1 / 64,
+    ]
+    act_outlier_mant_list = [6]
+
+    for outlier_ratio, act_outlier_mant in product(outlier_ratio_list, act_outlier_mant_list):
+        ol_ratio_name = get_outlier_name(outlier_ratio)
+        config_name = f"all_W4A4O{6+act_outlier_mant}_ol{ol_ratio_name}_accuracy"
+        config = {
+            'wbits': 4,
+            'abits': 4,
+            "aow_quant_act_qkvproj": None,
+            "aow_quant_act_oproj": None,
+            "aow_quant_act_fc1": None,
+            "aow_quant_act_fc2": None,
+            "aow_quant_act_q": None,
+            "aow_quant_act_k": None,
+            "aow_quant_act_v": None,
+            'eval_ppl_dataset': 'wikitext2', # Whatever, this is quick
+            'a_dynamic_method': 'per_token',
+            'act_outlier_ratio': outlier_ratio,
+            'act_outlier_exp': 5,
+            'act_outlier_mant': act_outlier_mant,
+            'tasks': 'piqa,arc_easy,arc_challenge,boolq,hellaswag,winogrande',
+            # 'tasks': 'piqa,arc_easy',  # testing
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict
