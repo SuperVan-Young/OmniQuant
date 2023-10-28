@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from itertools import product
+import re
 
 def parse_logs(logdir):
     """
@@ -17,12 +18,16 @@ def parse_logs(logdir):
                 cur_result = None
                 if "[PPL]" in line:
                     cur_result = line.split("[PPL]")[1]
-
-                if cur_result:
                     dataset, ppl = cur_result.split(":")
                     dataset = dataset.strip()
                     ppl = float(f"{float(ppl):.2f}")
                     results[dataset] = ppl
+                elif "'acc'" in line:
+                    match = re.search(r"\'([a-zA-Z0-9_]+)\':\s*\{\'acc\'\:\s*(\d+\.\d+)", line)
+                    dataset = match.group(1)
+                    acc = match.group(2)
+                    acc = float(f"{float(acc):.4f}")
+                    results[dataset] = acc
 
     return results
 

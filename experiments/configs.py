@@ -334,7 +334,7 @@ def get_full_model_accuracy_experiment_configs(**kwargs):
         'arc_easy',
         'arc_challenge',
         'boolq',
-        'hellaswag',
+        # 'hellaswag',  # too long!
         'winogrande',
     ]
 
