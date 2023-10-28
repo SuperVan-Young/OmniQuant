@@ -62,13 +62,15 @@ def evaluate(lm, args, logger):
             input_device = lm.model.model.decoder.layers[0].device
             output_device = lm.model.model.decoder.layers[-1].device
             lm._device = input_device
-            # assert input_device == output_device
-            # if input_device != output_device:
-            #     # add a hook to transfer output to input device
-            #     def hook(module, input, output):
-            #         return tuple(_.to(input_device) for _ in output)
-            #     lm.model.model.decoder.layers[-1].register_forward_hook(hook)
-            #     output_device = input_device
+            # assert input_device == output_device  
+            # probably because lm_head shares the embedding with 
+            # otherwise there'll be device problem
+            if input_device != output_device:
+                # add a hook to transfer output to input device
+                def hook(module, input, output):
+                    return tuple(_.to(input_device) for _ in output)
+                lm.model.model.decoder.layers[-1].register_forward_hook(hook)
+                output_device = input_device
             lm.model.model.decoder.embed_positions.to(input_device)
             lm.model.model.decoder.embed_tokens.to(input_device)
             lm.model.model.decoder.final_layer_norm.to(output_device)
