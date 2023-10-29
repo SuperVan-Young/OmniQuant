@@ -362,3 +362,57 @@ def get_full_model_accuracy_experiment_configs(**kwargs):
         config_dict[config_name] = config
 
     return config_dict
+
+def get_outlier_dse_experiment_configs(**kwargs):
+    """
+    This is for a figure in the paper
+    """
+    config_dict = {}
+
+    outlier_ratio_list = [
+        1 / 4096,
+        1 / 1024,
+        1 / 256,
+        1 / 64,
+        1 / 16,
+    ]
+    act_outlier_mant_list = [2, 6, 10]
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+        'oproj',
+        'fc2',
+    ] # ignore matmuls
+
+    # activation only experiments
+    for layer_type, outlier_ratio, act_outlier_mant in product(layer_type_list, outlier_ratio_list, act_outlier_mant_list):
+        ol_ratio_name = get_outlier_name(outlier_ratio)
+
+        config_name = f"{layer_type}_W16A4O{6+act_outlier_mant}_ol{ol_ratio_name}"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f"aow_quant_act_{layer_type}": None,
+            'eval_ppl_dataset': 'wikitext2',
+            'a_dynamic_method': 'none',
+            'act_outlier_ratio': outlier_ratio,
+            'act_outlier_exp': 5,
+            'act_outlier_mant': act_outlier_mant,
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    # W4A4 experiments
+    for layer_type in layer_type_list:
+        config_name = f"{layer_type}_W16A4"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f"aow_quant_act_{layer_type}": None,
+            'eval_ppl_dataset': 'wikitext2',
+            'a_dynamic_method': 'none',
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict

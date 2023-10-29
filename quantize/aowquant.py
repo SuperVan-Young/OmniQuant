@@ -205,12 +205,13 @@ def aowquant(
         raise ValueError("Only support for opt/llama/Llama-2/falcon now")
     
     # unified postlayernorm outlier index
-    unified_postlayernorm_outlier_index = get_unified_postlayernorm_outlier_index(
-        act_stats,
-        args.act_outlier_ratio,
-        args.act_group_size,
-        logger=logger,
-    ).to(dev)
+    if args.act_outlier_ratio:
+        unified_postlayernorm_outlier_index = get_unified_postlayernorm_outlier_index(
+            act_stats,
+            args.act_outlier_ratio,
+            args.act_group_size,
+            logger=logger,
+        ).to(dev)
 
     # quantize every layer, and set high precision activation channels
     for i in range(len(layers)):

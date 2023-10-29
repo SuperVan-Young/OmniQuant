@@ -29,6 +29,7 @@ def write_script(script, script_path):
         f.write(script)
 
 def main():
+    # demo experiments
     write_script(get_multi_model_script(
         model_name_list=get_model_list('tiny'),
         server_config=get_server_config(args.server),
@@ -79,7 +80,6 @@ def main():
             top_output_dir='./output/full_model/'), 
             f'./scripts/final/{model_list_type}.sh')
     
-    # O8 experiments
     write_script(get_multi_model_script(
         model_name_list=get_model_list('all'),
         server_config=get_server_config(args.server),
@@ -93,6 +93,13 @@ def main():
         experiment_config_dict=get_full_model_accuracy_experiment_configs(),
         top_output_dir='./output/full_model/'), 
         './scripts/final/accuracy.sh')
+    
+    write_script(get_multi_model_script(
+        model_name_list=['llama-7b-meta'],
+        server_config=get_server_config(args.server),
+        experiment_config_dict=get_outlier_dse_experiment_configs(),
+        top_output_dir='./output/outlier_dse/'), 
+        './scripts/final/outlier_dse.sh')
 
 if __name__ == "__main__":
     main()
