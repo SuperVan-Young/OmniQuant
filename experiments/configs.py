@@ -394,7 +394,7 @@ def get_outlier_dse_experiment_configs(**kwargs):
             'abits': 4,
             f"aow_quant_act_{layer_type}": None,
             'eval_ppl_dataset': 'wikitext2',
-            'a_dynamic_method': 'none',
+            'a_dynamic_method': 'per_token',
             'act_outlier_ratio': outlier_ratio,
             'act_outlier_exp': 5,
             'act_outlier_mant': act_outlier_mant,
@@ -410,7 +410,7 @@ def get_outlier_dse_experiment_configs(**kwargs):
             'abits': 4,
             f"aow_quant_act_{layer_type}": None,
             'eval_ppl_dataset': 'wikitext2',
-            'a_dynamic_method': 'none',
+            'a_dynamic_method': 'per_token',
         }
         config.update(kwargs)
         config_dict[config_name] = config
