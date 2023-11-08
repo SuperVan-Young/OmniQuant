@@ -278,6 +278,10 @@ def main():
     parser.add_argument("--aow_quant_act_q", default=False, action="store_true", help="quantize q activation")
     parser.add_argument("--aow_quant_act_k", default=False, action="store_true", help="quantize k activation")
     parser.add_argument("--aow_quant_act_v", default=False, action="store_true", help="quantize v activation")
+    parser.add_argument("--act_outlier_ratio_qkvproj", type=float, default=None, help="ratio of outlier activation channels for qkv_proj")
+    parser.add_argument("--act_outlier_ratio_oproj", type=float, default=None, help="ratio of outlier activation channels for o_proj")
+    parser.add_argument("--act_outlier_ratio_fc1", type=float, default=None, help="ratio of outlier activation channels for fc1")
+    parser.add_argument("--act_outlier_ratio_fc2", type=float, default=None, help="ratio of outlier activation channels for fc2")
     parser.add_argument("--eval_ppl_dataset", type=str, nargs='+', default=['wikitext2'], help="dataset for ppl evaluation")
     parser.add_argument("--debug", default=False, action="store_true", help="debug mode")
 

@@ -247,7 +247,8 @@ def aowquant(
                 # not using act reordering for oproj
                 if linear_category == 'oproj':
                     use_act_reorder = False
-                    outlier_group_size = 128  # we hardcode this for convenience, since all the model we use have this outlier group size
+                    # outlier_group_size = 128  # we hardcode this for convenience, since all the model we use have this outlier group size
+                    outlier_group_size = args.weight_group_size
                 elif linear_category == 'fc2':
                     use_act_reorder = args.act_reorder
                     outlier_group_size = args.weight_group_size  # accomodate GPTQ groupwise quantization, so that needless to requantize weight
@@ -255,22 +256,29 @@ def aowquant(
                     use_act_reorder = not args.act_unified_postlayernorm_outlier
                     outlier_group_size = args.weight_group_size
 
+                # parse outlier ratio
+                _act_outlier_ratio = getattr(args, f"act_outlier_ratio_{linear_category}")
+                if _act_outlier_ratio is None:
+                    _act_outlier_ratio = args.act_outlier_ratio
+                else:
+                    assert act_unified_postlayernorm_outlier == False, "Cannot set both unified postlayernorm outlier mask and individual outlier ratio"
+
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
-                    num_outlier_per_group = math.ceil(args.act_group_size * args.act_outlier_ratio)
+                    num_outlier_per_group = math.ceil(args.act_group_size * act_outlier_ratio)
                     new_outlier_ratio = num_outlier_per_group / args.act_group_size
-                    if new_outlier_ratio > args.act_outlier_ratio:
-                        logger.info(f"Outlier ratio enlarged from {args.act_outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
-                        args.act_outlier_ratio = new_outlier_ratio
+                    if new_outlier_ratio > _act_outlier_ratio:
+                        logger.info(f"Outlier ratio enlarged from {_act_outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
+                        _act_outlier_ratio = new_outlier_ratio
 
                 # select outlier channels， and generate outlier mask before reordering
-                if args.act_outlier_ratio > 0:
+                if _act_outlier_ratio > 0:
                     if args.act_unified_postlayernorm_outlier and linear_category in ('fc1', 'qkvproj'):
                         outlier_index = deepcopy(unified_postlayernorm_outlier_index)
                     else:
                         outlier_index = get_outlier_channel_index(
                             act_scale,
-                            args.act_outlier_ratio,
+                            _act_outlier_ratio,
                             # if use reordering, grouping is ignored
                             group_size = outlier_group_size,  # we hardcode this for convenience
                             outlier_metric = args.outlier_metric,
@@ -306,7 +314,7 @@ def aowquant(
                     if args.act_group_size:
                         num_groups = math.ceil(act_scale.shape[0] / args.act_group_size)
 
-                        num_outlier_per_group = math.ceil(args.act_group_size * args.act_outlier_ratio)
+                        num_outlier_per_group = math.ceil(args.act_group_size * _act_outlier_ratio)
                         num_normal_per_group = args.act_group_size - num_outlier_per_group
 
                         # spread outliers in each group
