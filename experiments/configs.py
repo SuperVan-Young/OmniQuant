@@ -421,3 +421,109 @@ def get_outlier_dse_experiment_configs(**kwargs):
         config_dict[config_name] = config
 
     return config_dict
+
+def get_opt_uniform_mixed_experiment_config():
+    """
+    Quantization with uniform outlier ratio and mixed outlier ratio
+    """
+    OPT_001_UNIFORM_CONFIG = {
+        'act_outlier_ratio': 1 / 512,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 2,
+    }
+    OPT_01_UNIFORM_CONFIG = {
+        'act_outlier_ratio': 1 / 128,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 6,
+    }
+    OPT_001_MIXED_CONFIG = {
+        'act_outlier_ratio': 1 / 512,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 6,
+        'act_outlier_ratio_qkvproj': 1 / 512,
+        'act_outlier_ratio_oproj': 1 / 4096,
+        'act_outlier_ratio_fc1': 1 / 512,
+        'act_outlier_ratio_fc2': 1 / 4096,
+    }
+    OPT_01_MIXED_CONFIG = {
+        'act_outlier_ratio': 1 / 128,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 6,
+        'act_outlier_ratio_qkvproj': 1 / 64,
+        'act_outlier_ratio_oproj': 1 / 128,
+        'act_outlier_ratio_fc1': 1 / 64,
+        'act_outlier_ratio_fc2': 1 / 128,
+    }
+
+    config_dict = {
+        'opt_W4A4.01_uniform': OPT_001_UNIFORM_CONFIG,
+        'opt_W4A4.1_uniform': OPT_01_UNIFORM_CONFIG,
+        'opt_W4A4.01_mixed': OPT_001_MIXED_CONFIG,
+        'opt_W4A4.1_mixed': OPT_01_MIXED_CONFIG,
+    }
+
+    for config_name, config in config_dict.items():
+        config.update({
+            'wbits': 4,
+            'abits': 4,
+            "aow_quant_act_qkvproj": None,
+            "aow_quant_act_oproj": None,
+            "aow_quant_act_fc1": None,
+            "aow_quant_act_fc2": None,
+            "aow_quant_act_q": None,
+            "aow_quant_act_k": None,
+            "aow_quant_act_v": None,
+            'eval_ppl_dataset': 'wikitext2 c4',
+            'a_dynamic_method': 'per_token',
+        })
+
+    return config_dict
+
+
+def get_llama_uniform_mixed_experiment_config():
+    LLAMA_001_UNIFORM_CONFIG = {
+        'act_outlier_ratio': 1 / 512,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 2,
+    }
+    LLAMA_001_MIXED_CONFIG = {
+        'act_outlier_ratio': 1 / 512,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 2,
+        'act_outlier_ratio_qkvproj': 1 / 256,
+        'act_outlier_ratio_oproj': 1 / 1024,
+        'act_outlier_ratio_fc1': 1 / 1024,
+        'act_outlier_ratio_fc2': 1 / 256,
+    }
+    LLAMA_01_MIXED_CONFIG = {
+        'act_outlier_ratio': 1 / 128,
+        'act_outlier_exp': 5,
+        'act_outlier_mant': 2,
+        'act_outlier_ratio_qkvproj': 1 / 128,
+        'act_outlier_ratio_oproj': 1 / 128,
+        'act_outlier_ratio_fc1': 1 / 128,
+        'act_outlier_ratio_fc2': 1 / 16,
+    }
+
+    config_dict = {
+        'llama_W4A4.01_uniform': LLAMA_001_UNIFORM_CONFIG,
+        'llama_W4A4.01_mixed': LLAMA_001_MIXED_CONFIG,
+        'llama_W4A4.1_mixed': LLAMA_01_MIXED_CONFIG,
+    }
+
+    for config_name, config in config_dict.items():
+        config.update({
+            'wbits': 4,
+            'abits': 4,
+            "aow_quant_act_qkvproj": None,
+            "aow_quant_act_oproj": None,
+            "aow_quant_act_fc1": None,
+            "aow_quant_act_fc2": None,
+            "aow_quant_act_q": None,
+            "aow_quant_act_k": None,
+            "aow_quant_act_v": None,
+            'eval_ppl_dataset': 'wikitext2 c4',
+            'a_dynamic_method': 'per_token',
+        })
+
+    return config_dict

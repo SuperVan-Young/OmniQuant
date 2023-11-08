@@ -261,11 +261,11 @@ def aowquant(
                 if _act_outlier_ratio is None:
                     _act_outlier_ratio = args.act_outlier_ratio
                 else:
-                    assert act_unified_postlayernorm_outlier == False, "Cannot set both unified postlayernorm outlier mask and individual outlier ratio"
+                    assert args.act_unified_postlayernorm_outlier == False, "Cannot set both unified postlayernorm outlier mask and individual outlier ratio"
 
                 # enlarge outlier ratio for alignment in grouping
                 if args.act_group_size:
-                    num_outlier_per_group = math.ceil(args.act_group_size * act_outlier_ratio)
+                    num_outlier_per_group = math.ceil(args.act_group_size * _act_outlier_ratio)
                     new_outlier_ratio = num_outlier_per_group / args.act_group_size
                     if new_outlier_ratio > _act_outlier_ratio:
                         logger.info(f"Outlier ratio enlarged from {_act_outlier_ratio} to {new_outlier_ratio} for alignment in grouping")
