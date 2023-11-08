@@ -95,7 +95,7 @@ def main():
         './scripts/final/accuracy.sh')
     
     write_script(get_multi_model_script(
-        model_name_list=['llama-7b-meta'],
+        model_name_list=['llama-7b-meta', 'opt-6.7b'],
         server_config=get_server_config(args.server),
         experiment_config_dict=get_outlier_dse_experiment_configs(),
         top_output_dir='./output/outlier_dse/'), 

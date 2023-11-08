@@ -371,10 +371,15 @@ def get_outlier_dse_experiment_configs(**kwargs):
 
     outlier_ratio_list = [
         1 / 4096,
+        1 / 2048,
         1 / 1024,
+        1 / 512,
         1 / 256,
+        1 / 128,
         1 / 64,
+        1 / 32,
         1 / 16,
+        1 / 8,
     ]
     act_outlier_mant_list = [2, 6, 10]
     layer_type_list = [
