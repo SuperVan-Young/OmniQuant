@@ -19,9 +19,9 @@ from copy import deepcopy
 
 def get_outlier_channel_index(
     act_scale,
-    act_outlier_ratio,
-    group_size = None,
-    outlier_metric = 'scale',
+    outlier_ratio,
+    outlier_threshold,
+    outlier_metric,
     logger = None,
 
 ) -> torch.Tensor:
@@ -29,16 +29,24 @@ def get_outlier_channel_index(
     Select outlier channels from activation scale.
     Returns: 1d tensor of outlier channel indices
     """
-    assert outlier_metric == 'scale', "Only support scale now"
-    assert act_outlier_ratio > 0 and act_outlier_ratio < 1, "Outlier ratio should be in (0, 1)"
     assert len(act_scale.shape) == 1, "Only support 1D tensor now"
-    assert group_size is None, "Grouping is not supported now"
 
-    num_outlier_channels = math.ceil(act_scale.shape[0] * act_outlier_ratio)
-    _, outlier_channels = torch.topk(act_scale, num_outlier_channels)
-    
-    assert len(outlier_channels.shape) == 1, "Outlier channels should be 1D tensor"
-    return outlier_channels
+    if outlier_metric == 'none':
+        return None
+    elif outlier_metric == 'scale':
+        assert outlier_ratio > 0 and outlier_ratio < 1, "Outlier ratio should be in (0, 1)"
+        num_outlier_channels = math.ceil(act_scale.shape[0] * outlier_ratio)
+        _, outlier_channels = torch.topk(act_scale, num_outlier_channels)
+        return outlier_channels
+    elif outlier_metric == 'threshold':
+        act_scale_mid = torch.median(act_scale).item()
+        outlier_channels = torch.where(act_scale > outlier_threshold * act_scale_mid)[0]
+        if len(outlier_channels) == 0:
+            return None
+        else:
+            return outlier_channels
+    else:
+        raise ValueError(f"Unsupported outlier metric {outlier_metric}")    
 
 
 def get_scale_zero_point(xmin, xmax, abits, is_attention=False, efficient_groupwise=False):
@@ -168,32 +176,29 @@ def aowquant(
                     _act_outlier_ratio = args.act_outlier_ratio
 
                 # select outlier channels， and generate outlier mask before reordering
-                if _act_outlier_ratio > 0:
-                    outlier_index = get_outlier_channel_index(
-                        act_scale,
-                        _act_outlier_ratio,
-                        group_size = None,
-                        outlier_metric = args.outlier_metric,
-                        logger = logger,
-                    )
+                outlier_index = get_outlier_channel_index(
+                    act_scale,
+                    outlier_ratio = _act_outlier_ratio,
+                    outlier_threshold = args.act_outlier_threshold,
+                    outlier_metric = args.act_outlier_metric,
+                    logger = logger,
+                )
 
+                if outlier_index is not None:
                     outlier_mask = torch.nn.functional.one_hot(outlier_index, num_classes=act_scale.shape[0]).sum(dim=0).bool()
-                
                 else:
-                    outlier_index = None
-                    outlier_mask = torch.zeros(act_scale.shape[0], dtype=torch.bool)
-
-                final_outlier_mask = outlier_mask.to(device=dev)
+                    outlier_mask = torch.zeros_like(act_scale, dtype=torch.bool)
+                outlier_mask = outlier_mask.to(device=dev)
 
                 # set scale and round zero point of normal values
                 if args.a_dynamic_method == 'none':
-                    xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype) * ~final_outlier_mask
-                    xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype) * ~final_outlier_mask
+                    xmax = all_stats['input']['max'].to(device=dev, dtype=a_dtype) * ~outlier_mask
+                    xmin = all_stats['input']['min'].to(device=dev, dtype=a_dtype) * ~outlier_mask
                     scale, round_zero_point = get_scale_zero_point(xmin, xmax, args.abits)
                     set_quantizer_scale_round_zero_point(module.act_quantizer, scale, round_zero_point)
 
                 # Add outlier mask
-                module.act_quantizer.register_buffer('outlier_mask', final_outlier_mask)
+                module.act_quantizer.register_buffer('outlier_mask', outlier_mask)
 
             elif isinstance(module, QuantMatMul):
                 all_stats = act_stats[f"{layer_name_prefix}.{i}.{name}"]

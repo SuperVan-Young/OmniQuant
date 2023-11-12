@@ -262,15 +262,11 @@ def main():
     parser.add_argument("--act-stats", type=str, default=None)
     parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
     parser.add_argument("--weight_group_size", type=int, default=None, help="group size of weight quantization")
-    parser.add_argument("--act_group_size", type=int, default=None, help="group size of activation quantization")
     parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
+    parser.add_argument("--act_outlier_threshold", type=float, default=1, help="threshold to determine activation channels")
     parser.add_argument("--act_outlier_exp", type=int, default=5, help="exponent bitwidth of outlier activation channels")
     parser.add_argument("--act_outlier_mant", type=int, default=10, help="mantissa bitwidth of outlier activation channels")
-    parser.add_argument("--act_unified_postlayernorm_outlier", default=False, action="store_true", help="unified outlier activation quantization for postlayernorm")
-    parser.add_argument("--act_reorder", default=False, action="store_true", help="reorder activation quantization")
-    parser.add_argument("--act_group_efficient_accumulation", default=False, action="store_true", help="efficient accumulation for groupwise activation quantization")
-    parser.add_argument("--outlier_metric", type=str, default='scale', choices=['scale', 'std'], help="metric for choosing outlier activation channels")
-    parser.add_argument("--reorder_metric", type=str, default='scale', choices=['scale', 'std'], help="metric for reorder activation quantization")
+    parser.add_argument("--act_outlier_metric", type=str, default='none', choices=['none', 'ratio', 'threshold'], help="metric for choosing outlier activation channels")
     parser.add_argument("--aow_quant_act_qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
     parser.add_argument("--aow_quant_act_oproj", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow_quant_act_fc1", default=False, action="store_true", help="quantize fc1 activation")
@@ -342,7 +338,6 @@ def main():
         "per_channel_axes": [],
         "symmetric": False,
         "dynamic_method": args.a_dynamic_method,
-        "group_size": args.act_group_size,
         "outlier_exp": args.act_outlier_exp,
         "outlier_mant": args.act_outlier_mant,
     }
