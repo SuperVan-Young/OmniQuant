@@ -266,7 +266,7 @@ def main():
     parser.add_argument("--act_outlier_threshold", type=float, default=1, help="threshold to determine activation channels")
     parser.add_argument("--act_outlier_exp", type=int, default=5, help="exponent bitwidth of outlier activation channels")
     parser.add_argument("--act_outlier_mant", type=int, default=10, help="mantissa bitwidth of outlier activation channels")
-    parser.add_argument("--act_outlier_metric", type=str, default='none', choices=['none', 'ratio', 'threshold'], help="metric for choosing outlier activation channels")
+    parser.add_argument("--act_outlier_metric", type=str, choices=['ratio', 'threshold'], help="metric for choosing outlier activation channels")
     parser.add_argument("--aow_quant_act_qkvproj", default=False, action="store_true", help="quantize qkv_proj activation")
     parser.add_argument("--aow_quant_act_oproj", default=False, action="store_true", help="quantize o_proj activation")
     parser.add_argument("--aow_quant_act_fc1", default=False, action="store_true", help="quantize fc1 activation")

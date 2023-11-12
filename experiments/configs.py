@@ -533,3 +533,46 @@ def get_llama_uniform_mixed_experiment_config():
         })
 
     return config_dict
+
+def get_outlier_dse_v2_experiment_configs(**kwargs):
+    """
+    This is for a figure in the paper
+    """
+    config_dict = {}
+
+    outlier_threshold_list = [
+        1,
+        1.25,
+        1.5,
+        2,
+        3,
+    ]
+    act_outlier_mant_list = [2, 6]
+    layer_type_list = [
+        'qkvproj',
+        'fc1',
+        'oproj',
+        'fc2',
+    ] # ignore matmuls
+
+    # activation only experiments
+    for layer_type, outlier_threshold, act_outlier_mant in product(layer_type_list, outlier_threshold_list, act_outlier_mant_list):
+        if act_outlier_mant == 6 and layer_type != 'qkvproj':
+            continue
+
+        config_name = f"{layer_type}_W16A4O{6+act_outlier_mant}_ot{outlier_threshold}"
+        config = {
+            'wbits': 16,
+            'abits': 4,
+            f"aow_quant_act_{layer_type}": None,
+            'eval_ppl_dataset': 'wikitext2',
+            'a_dynamic_method': 'per_token',
+            'act_outlier_threshold': outlier_threshold,
+            'act_outlier_exp': 5,
+            'act_outlier_mant': act_outlier_mant,
+            'act_outlier_metric': 'threshold',
+        }
+        config.update(kwargs)
+        config_dict[config_name] = config
+
+    return config_dict

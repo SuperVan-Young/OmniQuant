@@ -31,13 +31,13 @@ def get_outlier_channel_index(
     """
     assert len(act_scale.shape) == 1, "Only support 1D tensor now"
 
-    if outlier_metric == 'none':
-        return None
-    elif outlier_metric == 'scale':
-        assert outlier_ratio > 0 and outlier_ratio < 1, "Outlier ratio should be in (0, 1)"
+    if outlier_metric == 'scale':
         num_outlier_channels = math.ceil(act_scale.shape[0] * outlier_ratio)
         _, outlier_channels = torch.topk(act_scale, num_outlier_channels)
-        return outlier_channels
+        if len(outlier_channels) == 0:
+            return None
+        else:
+            return outlier_channels
     elif outlier_metric == 'threshold':
         act_scale_mid = torch.median(act_scale).item()
         outlier_channels = torch.where(act_scale > outlier_threshold * act_scale_mid)[0]

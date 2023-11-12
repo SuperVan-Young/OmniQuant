@@ -100,6 +100,13 @@ def main():
         experiment_config_dict=get_outlier_dse_experiment_configs(),
         top_output_dir='./output/outlier_dse/'), 
         './scripts/final/outlier_dse.sh')
+    
+    write_script(get_multi_model_script(
+        model_name_list=['llama-7b-meta', 'opt-6.7b'],
+        server_config=get_server_config(args.server),
+        experiment_config_dict=get_outlier_dse_v2_experiment_configs(),
+        top_output_dir='./output/outlier_dse_v2/'), 
+        './scripts/final/outlier_dse_v2.sh')
 
     write_script(get_multi_model_script(
         model_name_list=get_model_list('opt_all'),
