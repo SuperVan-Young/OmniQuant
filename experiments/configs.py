@@ -490,16 +490,22 @@ def get_llama_uniform_mixed_experiment_config():
         'act_outlier_ratio': 1 / 512,
         'act_outlier_exp': 5,
         'act_outlier_mant': 2,
+        # 'act_outlier_ratio_qkvproj': 1 / 256,
+        # 'act_outlier_ratio_oproj': 1 / 1024,
+        # 'act_outlier_ratio_fc1': 1 / 1024,
+        # 'act_outlier_ratio_fc2': 1 / 256,
+        
+        # The following parameters work better for llama 13b and 30b
         'act_outlier_ratio_qkvproj': 1 / 256,
-        'act_outlier_ratio_oproj': 1 / 1024,
-        'act_outlier_ratio_fc1': 1 / 1024,
+        'act_outlier_ratio_oproj': 1 / 4096,
+        'act_outlier_ratio_fc1': 1 / 512,
         'act_outlier_ratio_fc2': 1 / 256,
     }
     LLAMA_01_MIXED_CONFIG = {
         'act_outlier_ratio': 1 / 128,
         'act_outlier_exp': 5,
         'act_outlier_mant': 2,
-        'act_outlier_ratio_qkvproj': 1 / 128,
+        'act_outlier_ratio_qkvproj': 1 / 64,
         'act_outlier_ratio_oproj': 1 / 128,
         'act_outlier_ratio_fc1': 1 / 128,
         'act_outlier_ratio_fc2': 1 / 16,
