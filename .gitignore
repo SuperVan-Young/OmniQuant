@@ -33,4 +33,5 @@ output_archive/
 results/
 .vscode
 final_figs/
+final_figs_v2/
 scripts/final
