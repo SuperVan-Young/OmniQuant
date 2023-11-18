@@ -121,6 +121,13 @@ def main():
         experiment_config_dict=get_llama_uniform_mixed_experiment_config(),
         top_output_dir='./output/uniform_mixed/'), 
         './scripts/final/llama_uniform_mixed.sh')
+    
+    write_script(get_multi_model_script(
+        model_name_list=get_model_list('all'),
+        server_config=get_server_config(args.server),
+        experiment_config_dict=get_olive_experiment_configs(),
+        top_output_dir='./output/olive/'), 
+        './scripts/final/olive.sh')
 
 if __name__ == "__main__":
     main()
