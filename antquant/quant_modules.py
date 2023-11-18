@@ -184,7 +184,7 @@ class Quantizer(nn.Module):
             base_alpha = x_max.clone()
             lb = int(self.w_low)
             ub = int(self.w_up)
-            return best_score.sum(), alpha, (alpha / x_max).mean().item()
+            # return best_score.sum(), alpha, (alpha / x_max).mean().item()
             for i in range(lb, ub, 2):
                 new_alpha = base_alpha * (i * 0.01)
                 self.alpha.data = new_alpha
@@ -205,7 +205,7 @@ class Quantizer(nn.Module):
             base_alpha = alpha.clone()            
             lb = int(self.a_low)
             ub = int(self.a_up)
-            return torch.tensor(best_score), alpha, (alpha / x_max).mean().item()
+            # return torch.tensor(best_score), alpha, (alpha / x_max).mean().item()
             for i in range(lb, ub, 2):
                 new_alpha = base_alpha * (i * 0.01)
                 self.alpha.data = new_alpha

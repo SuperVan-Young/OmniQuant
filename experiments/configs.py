@@ -587,7 +587,7 @@ def get_olive_experiment_configs():
         "wbits": 16,
         "abits": 4,
         'quant_method': 'olive',
-        'eval_ppl_dataset': 'wikitext c4',
+        'eval_ppl_dataset': 'wikitext2 c4',
     }
 
     return config_dict
