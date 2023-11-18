@@ -27,6 +27,11 @@ from quantize.int_linear import QuantLinear
 
 import pdb
 
+sys.path.append("./antquant")
+# sys.path.append("../antquant_new")
+from antquant.quant_model import *
+from antquant.quant_utils import *
+
 
 torch.backends.cudnn.benchmark = True
 
@@ -260,7 +265,7 @@ def main():
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
     parser.add_argument("--act-stats", type=str, default=None)
-    parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant"])
+    parser.add_argument("--quant_method", type=str, default="omniquant", choices=["omniquant", "aowquant", "olive"])
     parser.add_argument("--weight_group_size", type=int, default=None, help="group size of weight quantization")
     parser.add_argument("--act_outlier_ratio", type=float, default=0, help="ratio of outlier activation channels")
     parser.add_argument("--act_outlier_threshold", type=float, default=1, help="threshold to determine activation channels")
@@ -418,6 +423,36 @@ def main():
                 act_stats,
                 logger,
             )
+        elif args.quant_method == "olive":
+            quantizer_args = {
+                "mode": "ant-int-flint",
+                "wbit": 4,
+                "abit": 4,
+                "percent": 100,
+                "sigma": 0.0,
+                "disable_quant": False,
+                "disable_input_quantization": False,
+                "search": False,
+                "w_up": 250,
+                "a_up": 250,
+                "w_low": 75,
+                "a_low": 75,
+                "layer_8bit_n": 0,
+                "layer_8bit_l": None,
+                "quantize_batch_size": 2,
+                "no_outlier": False
+            }
+            from collections import namedtuple
+            QuantizeArguments = namedtuple('QuantizeArguments', [
+                'mode', 'wbit', 'abit', 'percent', 'sigma', 
+                'disable_quant', 'disable_input_quantization', 'search',
+                'w_up', 'a_up', 'w_low', 'a_low', 'layer_8bit_n', 
+                'layer_8bit_l', 'quantize_batch_size', 'no_outlier'
+            ])
+            quantizer_args = QuantizeArguments(**quantizer_args)
+            set_quantizer(quantizer_args)
+            lm.model = quantize_model(lm.model, quant_args)  
+            enable_quantization(lm.model)
         logger.info(time.time() - tick)
     if args.save_dir:
         # delete omni parameters
