@@ -267,11 +267,11 @@ class Quantizer(nn.Module):
                 # else:
                 #     raise RuntimeError("Unsupported mode: " + self.mode)
                 
-                # 我们现在就定死用int
                 self.mode = 'int'
 
                 # 这个就先不搜MSE了，在函数里改掉了
                 _, self.alpha.data, alpha_ratio = self.search_mse(data)
+                print(alpha_ratio)
 
                 quant_data = self._forward(data)
                 self.mse = self.mse_loss(quant_data, data, 2, is_perchannel=self.is_perchannel).mean()
@@ -351,13 +351,29 @@ class Quantizer(nn.Module):
 
         # 这里alpha就是我的threshold，也就是normal的最大值
         normal_mask = data.abs() < self.alpha
-        normal_scale = self.alpha / 7
-        normal_quantized_data = torch.round((data * normal_mask) / normal_scale) * normal_scale
 
-        outlier_scale = 12 * normal_scale
+        # if self.mode == 'int':
+        #     normal_scale = self.alpha / 7
+        #     normal_quantized_data = torch.clamp(torch.round((data * normal_mask) / normal_scale), -7, 7) * normal_scale
+        #     outlier_scale = (3 * 4) * normal_scale
+        #     outlier_quantized_data = torch.clamp(torch.round((data * (~normal_mask)) / outlier_scale), -7, 7) * outlier_scale
+        # else:
+        normal_scale = self.alpha / 16
+        normal_quantized_data = torch.clamp(torch.round((data * normal_mask) / normal_scale), -16, 16) * normal_scale
+        outlier_scale = (3 * 8) * normal_scale
         outlier_quantized_data = torch.clamp(torch.round((data * (~normal_mask)) / outlier_scale), -7, 7) * outlier_scale
 
         quantized_data = normal_quantized_data + outlier_quantized_data
+        torch.cuda.empty_cache()
+
+        # 分开检测两个里面的nan
+        try:
+            assert not torch.isnan(quantized_data).any()
+            assert not torch.isinf(quantized_data).any()
+        except:
+            abnormal_mask = torch.isnan(quantized_data) | torch.isinf(quantized_data)
+            quantized_data[abnormal_mask] = data[abnormal_mask]
+            print(f"abnormal detected, number {abnormal_mask.sum()}!")
         
         # 不处理victim
 
